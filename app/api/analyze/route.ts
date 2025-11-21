@@ -134,12 +134,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Converte il file in base64 (per immagini / pdf singola pagina)
-    const arrayBuffer = await file.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+    const mime = file.type || "";
+    if (!mime.startsWith("image/") && !mime.startsWith("application/pdf")) {
+      return NextResponse.json(
+        {
+          error:
+            "Formato non supportato. Carica una immagine (JPG, PNG) o un PDF della bolletta/polizza/contratto."
+        },
+        { status: 400 }
+      );
+    }
 
-    // ⚠️ Nota: per i PDF multipagina al momento analizziamo come se fosse UNA pagina.
-    // Per risultati migliori, usa il PDF della bolletta con la pagina riepilogo oppure un'immagine.
+    // Carica il file su OpenAI per uso vision (immagini + PDF)
+    const uploadedFile = await openai.files.create({
+      file,
+      purpose: "vision"
+    });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
@@ -156,12 +166,11 @@ export async function POST(req: NextRequest) {
               text: "Analizza questo documento e restituisci SOLO il JSON richiesto."
             },
             {
-              type: "image_url",
-              image_url: {
-                url: `data:${file.type};base64,${base64Data}`
-              }
-            }
-          ]
+              // cast a any per evitare l'errore di typings su 'file'
+              type: "file",
+              file_id: uploadedFile.id
+            } as any
+          ] as any
         }
       ],
       temperature: 0

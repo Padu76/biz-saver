@@ -1,47 +1,34 @@
-# BizSaver AI – Aggiornamento: Upload, Analisi mock & Storico
+# BizSaver AI – Integrazione OpenAI Vision (immagini + PDF)
 
-Questo pacchetto aggiunge:
+Questo aggiornamento aggiunge:
 
-- Upload documenti con anteprima analisi mock: `app/(dashboard)/upload/page.tsx`
-- API `/api/analyze` che:
-  - accetta un file nel `FormData`
-  - crea un profilo di costo mock (in attesa dell'integrazione con l'AI reale)
-  - usa `suggestAlternatives` per generare i suggerimenti
-  - salva (se configurato Supabase) un record nella tabella `analyses`
-- Client Supabase in `lib/supabaseClient.ts`
-- Pagina storico analisi: `app/(dashboard)/history/page.tsx`
-- Tabella storico: `components/HistoryTable.tsx`
+- Supporto a **immagini e PDF** per l'endpoint `/api/analyze`
+- Integrazione con **OpenAI Vision** tramite file upload (`openai.files.create` con `purpose: "vision"`)
+- Estrazione automatica dei costi e normalizzazione in JSON
+- UI di upload aggiornata per accettare PDF + immagini
 
-## Setup Supabase
+## File inclusi
 
-1. Crea un progetto Supabase.
-2. Crea una tabella `analyses` con queste colonne minime:
+- `package.json` (aggiornato con dipendenze: `openai`, `@supabase/supabase-js`, `date-fns`)
+- `lib/supabaseClient.ts`
+- `app/api/analyze/route.ts`
+- `app/(dashboard)/upload/page.tsx`
 
-```sql
-create table public.analyses (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz default now(),
-  categoria text,
-  fornitore_attuale text,
-  spesa_mensile_attuale numeric,
-  spesa_annua_attuale numeric,
-  miglior_risparmio_annuo numeric,
-  filename text
-);
-```
+## Env richieste
 
-3. Imposta queste variabili di ambiente (in `.env.local` e su Vercel):
+In `.env.local` e in Vercel:
 
+- `OPENAI_API_KEY`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- opzionale: `SUPABASE_SERVICE_ROLE_KEY` (solo lato server)
+- opzionale: `SUPABASE_SERVICE_ROLE_KEY`
 
-## Comandi utili
+## Comandi
 
 ```bash
 npm install
 npm run build
 git add .
-git commit -m "update upload/analyze/history"
+git commit -m "update analyze API with OpenAI Vision (PDF + images)"
 git push
 ```

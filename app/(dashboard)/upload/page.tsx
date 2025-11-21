@@ -55,9 +55,9 @@ export default function UploadPage() {
       <div>
         <h1 className="text-2xl font-semibold">Carica documenti</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-300">
-          Carica una bolletta, una polizza o un contratto (PDF o immagine). In questa versione
-          di anteprima l&apos;analisi &egrave; mockata, ma il flusso &egrave; gi&agrave; pronto
-          per collegarsi all&apos;AI che legge i documenti.
+          Carica una bolletta, una polizza o un contratto (PDF o immagine). L&apos;AI legger&agrave;
+          il documento, estrarr&agrave; i costi principali e confronter&agrave; automaticamente
+          le tue spese con le offerte a catalogo.
         </p>
       </div>
 
@@ -82,10 +82,10 @@ export default function UploadPage() {
             htmlFor="file-input"
             className="inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-600 bg-slate-950 px-4 py-2 text-xs font-medium text-slate-100 hover:border-accent hover:text-accent"
           >
-            Seleziona un file
+            Seleziona un file (PDF o immagine)
           </label>
           <p className="text-xs text-slate-400">
-            Formati supportati: PDF, JPG, PNG &middot; Max 10MB per file
+            Formati supportati: PDF, JPG, PNG, WEBP &middot; Max 10MB per file
           </p>
           {file && (
             <p className="text-xs text-emerald-300">
@@ -108,10 +108,8 @@ export default function UploadPage() {
 
         {!error && !result && (
           <p className="text-xs text-slate-500">
-            Suggerimento: per i primi test, carica una bolletta con nome tipo
-            <span className="font-mono"> mobile.pdf</span> o
-            <span className="font-mono"> energia.pdf</span> per vedere come cambia la categoria
-            riconosciuta.
+            Suggerimento: per risultati migliori, carica il PDF o la pagina riepilogo della bolletta
+            con i totali ben visibili (importo da pagare, periodo di riferimento, ecc.).
           </p>
         )}
       </form>
@@ -120,7 +118,7 @@ export default function UploadPage() {
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">
             <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">
-              Anteprima analisi (mock)
+              Anteprima analisi AI
             </div>
             <p>
               Categoria rilevata:{" "}
@@ -133,8 +131,8 @@ export default function UploadPage() {
               </span>
             </p>
             <p className="mt-1 text-slate-400">
-              In produzione, qui vedrai i dati estratti realmente dal PDF (fornitore, consumi,
-              condizioni, ecc.).
+              I dati sono stati estratti automaticamente dal documento caricato. Controlla sempre
+              che importi e categoria siano coerenti prima di agire sui cambi di fornitore.
             </p>
           </div>
 
