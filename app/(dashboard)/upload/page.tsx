@@ -2,7 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { ComparisonReport } from "@/components/ComparisonReport";
-import type { CurrentCostProfile, SuggestedAlternative } from "@/types/cost-comparison";
+import type {
+  CurrentCostProfile,
+  SuggestedAlternative,
+} from "@/types/cost-comparison";
 
 interface AnalyzeResponse {
   profile: CurrentCostProfile;
@@ -32,12 +35,14 @@ export default function UploadPage() {
 
       const res = await fetch("/api/analyze", {
         method: "POST",
-        body: formData
+        body: formData,
       });
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Errore durante l'analisi del documento.");
+        throw new Error(
+          body?.error || "Errore durante l'analisi del documento."
+        );
       }
 
       const data: AnalyzeResponse = await res.json();
@@ -52,15 +57,22 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
+      {/* HEADER */}
       <div>
         <h1 className="text-2xl font-semibold">Carica documenti</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-300">
-          Carica una bolletta, una polizza o un contratto in PDF oppure come immagine. L&apos;AI
-          legger&agrave; il contenuto, estrarr&agrave; i costi principali e confronter&agrave;
-          automaticamente le tue spese con le offerte a catalogo.
+          Carica una bolletta, una polizza o un contratto{" "}
+          <span className="font-semibold">in PDF oppure come immagine</span>.
+          L&apos;AI legge il documento, estrae i costi principali e li confronta
+          automaticamente con le offerte a catalogo.
+        </p>
+        <p className="mt-1 max-w-2xl text-xs text-emerald-300">
+          Questa sezione usa i dati reali estratti dall&apos;AI, non è più una
+          simulazione.
         </p>
       </div>
 
+      {/* FORM UPLOAD */}
       <form
         onSubmit={handleSubmit}
         className="space-y-4 rounded-xl border border-dashed border-slate-700 bg-black/40 p-6 text-sm"
@@ -89,7 +101,8 @@ export default function UploadPage() {
           </p>
           {file && (
             <p className="text-xs text-emerald-300">
-              File selezionato: <span className="font-semibold">{file.name}</span>
+              File selezionato:{" "}
+              <span className="font-semibold">{file.name}</span>
             </p>
           )}
         </div>
@@ -108,37 +121,48 @@ export default function UploadPage() {
 
         {!error && !result && (
           <p className="text-xs text-slate-500">
-            Suggerimento: per i PDF molto lunghi considera di caricare solo la bolletta sintetica
-            o il documento con i totali ben visibili. Il testo estratto viene troncato dopo ~12.000
-            caratteri per ottimizzare l&apos;analisi.
+            Suggerimento: per PDF molto lunghi carica la bolletta/contratto
+            sintetico con i totali ben visibili (importo da pagare, periodo,
+            fornitore, ecc.).
           </p>
         )}
       </form>
 
+      {/* RISULTATO AI REALE */}
       {result && (
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">
             <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">
-              Anteprima analisi AI
+              Anteprima analisi AI (dati reali)
             </div>
             <p>
               Categoria rilevata:{" "}
               <span className="font-semibold">{result.profile.categoria}</span>
             </p>
             <p>
+              Fornitore attuale:{" "}
+              <span className="font-semibold">
+                {result.profile.fornitore_attuale || "Non specificato"}
+              </span>
+            </p>
+            <p>
               Spesa mensile stimata:{" "}
               <span className="font-semibold">
-                {result.profile.spesa_mensile_attuale} {result.profile.valuta}
+                {result.profile.spesa_mensile_attuale}{" "}
+                {result.profile.valuta || "EUR"}
               </span>
             </p>
             <p className="mt-1 text-slate-400">
-              I dati sono stati estratti automaticamente dal documento caricato (PDF o immagine).
-              Controlla sempre che importi e categoria siano coerenti prima di agire sui cambi di
-              fornitore.
+              I dati sopra sono stati estratti automaticamente dal documento
+              caricato (PDF o immagine). Verifica che importi e categoria siano
+              coerenti prima di procedere con eventuali cambi di fornitore.
             </p>
           </div>
 
-          <ComparisonReport profile={result.profile} suggestions={result.suggestions} />
+          <ComparisonReport
+            profile={result.profile}
+            suggestions={result.suggestions}
+          />
         </div>
       )}
     </div>
