@@ -1,0 +1,242 @@
+[
+  {
+    "categoria": "energia",
+    "fornitore": "Enel Energia",
+    "tipo_servizi": "Luce e gas per imprese e partite IVA",
+    "offerte": [
+      "Formidabile Luce Business",
+      "Luce Business Fissa 12 mesi"
+    ],
+    "range_prezzo": "0.14-0.20 €/kWh",
+    "link": "https://www.enel.it/it-it/imprese",
+    "note": "Prezzi stabili e forte presenza nazionale. Buono per consumi regolari."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "Eni Plenitude",
+    "tipo_servizi": "Luce e gas business",
+    "offerte": [
+      "Fixa Business",
+      "Trend Business"
+    ],
+    "range_prezzo": "0.13-0.18 €/kWh",
+    "link": "https://www.eniplenitude.com/business",
+    "note": "Energia rinnovabile disponibile; buon rapporto qualità/prezzo."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "A2A Energia",
+    "tipo_servizi": "Luce e gas per imprese",
+    "offerte": [
+      "Luce Business Flex",
+      "Gas Business Flex"
+    ],
+    "range_prezzo": "0.14-0.22 €/kWh",
+    "link": "https://www.a2aenergia.eu/business",
+    "note": "Ottimo per aziende in Lombardia e Nord Italia."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "Edison Energia",
+    "tipo_servizi": "Luce e gas business",
+    "offerte": [
+      "Luce Business Semplice",
+      "Gas Business Semplice"
+    ],
+    "range_prezzo": "0.15-0.23 €/kWh",
+    "link": "https://www.edisonenergia.it/imprese",
+    "note": "Fornitore storico con contratti stabili."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "Hera Comm",
+    "tipo_servizi": "Luce e gas PMI",
+    "offerte": [
+      "Business Web Luce",
+      "Imprese Online"
+    ],
+    "range_prezzo": "0.16-0.25 €/kWh",
+    "link": "https://www.heracomm.com/business",
+    "note": "Molto presente nel Centro-Nord. Assistenza solida."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "Sorgenia",
+    "tipo_servizi": "Luce e gas business digitali",
+    "offerte": [
+      "Next Energy Business",
+      "Next Energy Green"
+    ],
+    "range_prezzo": "0.14-0.19 €/kWh",
+    "link": "https://www.sorgenia.it/business",
+    "note": "Tra i più competitivi online."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "Illumia",
+    "tipo_servizi": "Luce e gas per microimprese",
+    "offerte": [
+      "Business Smart",
+      "Monoraria Business"
+    ],
+    "range_prezzo": "0.15-0.20 €/kWh",
+    "link": "https://www.illumia.it/business",
+    "note": "Fornitore snello, contratti semplici."
+  },
+  {
+    "categoria": "energia",
+    "fornitore": "Dolomiti Energia",
+    "tipo_servizi": "Luce e gas per PMI",
+    "offerte": [
+      "Business Luce Flat",
+      "Gas Business"
+    ],
+    "range_prezzo": "0.16-0.23 €/kWh",
+    "link": "https://www.dolomitienergia.it/aziende",
+    "note": "Ottimo nel Nord-Est, servizio clienti reattivo."
+  },
+  {
+    "categoria": "telefonia_mobile",
+    "fornitore": "TIM Business",
+    "tipo_servizi": "Mobile + fibra business",
+    "offerte": [
+      "TIM Elite",
+      "TIM Next Business"
+    ],
+    "range_prezzo": "15-25 €/mese per linea",
+    "link": "https://www.tim.it/business",
+    "note": "Copertura top in tutta Italia."
+  },
+  {
+    "categoria": "telefonia_mobile",
+    "fornitore": "Vodafone Business",
+    "tipo_servizi": "Mobile + rete fissa",
+    "offerte": [
+      "OneBusiness Mobile",
+      "OneBusiness Fibra + Mobile"
+    ],
+    "range_prezzo": "20-30 €/linea",
+    "link": "https://www.vodafone.it/business",
+    "note": "Ottimo per pacchetti integrati."
+  },
+  {
+    "categoria": "telefonia_mobile",
+    "fornitore": "Fastweb Business",
+    "tipo_servizi": "Fibra + mobile",
+    "offerte": [
+      "Internet Business Fibra",
+      "Mobile Business Full"
+    ],
+    "range_prezzo": "20-30 €/mese fibra, 12-20 €/mese mobile",
+    "link": "https://www.fastweb.it/business",
+    "note": "Tra i più competitivi sulla fibra."
+  },
+  {
+    "categoria": "telefonia_mobile",
+    "fornitore": "WINDTRE Business",
+    "tipo_servizi": "Mobile + fisso per PMI",
+    "offerte": [
+      "Super Unlimited+",
+      "Smart Share Business"
+    ],
+    "range_prezzo": "16-24 €/linea/mese",
+    "link": "https://www.windtrebusiness.it",
+    "note": "Buon rapporto qualità/prezzo."
+  },
+  {
+    "categoria": "telefonia_mobile",
+    "fornitore": "PosteMobile Business",
+    "tipo_servizi": "Mobile per P.IVA",
+    "offerte": [
+      "PMI Unlimited",
+      "PMI 50GB"
+    ],
+    "range_prezzo": "6-14 €/mese",
+    "link": "https://www.postemobile.it/business",
+    "note": "Economico e affidabile."
+  },
+  {
+    "categoria": "internet",
+    "fornitore": "Sky Wifi Business",
+    "tipo_servizi": "Fibra business",
+    "offerte": [
+      "Ultrafibra Business",
+      "Wifi Pro 1000"
+    ],
+    "range_prezzo": "20-30 €/mese",
+    "link": "https://www.sky.it/wifi/business",
+    "note": "Ottimo per piccoli uffici."
+  },
+  {
+    "categoria": "assicurazioni",
+    "fornitore": "Generali Italia",
+    "tipo_servizi": "RC Auto, polizze immobile, business",
+    "offerte": [
+      "Impres@Protetta",
+      "Business Protection"
+    ],
+    "range_prezzo": "RC Auto 350-600 €/anno",
+    "link": "https://www.generali.it",
+    "note": "Forte rete di agenzie."
+  },
+  {
+    "categoria": "assicurazioni",
+    "fornitore": "UnipolSai",
+    "tipo_servizi": "Auto, uffici, negozi",
+    "offerte": [
+      "Ufficio & Negozio",
+      "RC Auto Business"
+    ],
+    "range_prezzo": "300-550 €/anno",
+    "link": "https://www.unipolsai.it",
+    "note": "Ottimo per attività commerciali."
+  },
+  {
+    "categoria": "assicurazioni",
+    "fornitore": "Allianz",
+    "tipo_servizi": "Polizze auto, immobile, professionali",
+    "offerte": [
+      "Allianz Auto",
+      "Allianz Professional"
+    ],
+    "range_prezzo": "350-600 €/anno",
+    "link": "https://www.allianz.it",
+    "note": "Top per prodotti multi-rischio."
+  },
+  {
+    "categoria": "noleggio_auto",
+    "fornitore": "Arval",
+    "tipo_servizi": "Noleggio a lungo termine",
+    "offerte": [
+      "Citycar Business",
+      "Small Fleet Solutions"
+    ],
+    "range_prezzo": "230-350 €/mese",
+    "link": "https://www.arval.it",
+    "note": "Fortissimo sulle piccole flotte."
+  },
+  {
+    "categoria": "noleggio_auto",
+    "fornitore": "Leasys",
+    "tipo_servizi": "NLT imprese",
+    "offerte": [
+      "Leasys Miles",
+      "Business NLT"
+    ],
+    "range_prezzo": "240-360 €/mese",
+    "link": "https://www.leasys.com",
+    "note": "Buono per citycar e veicoli commerciali."
+  },
+  {
+    "categoria": "noleggio_auto",
+    "fornitore": "UnipolRental",
+    "tipo_servizi": "NLT microimprese",
+    "offerte": [
+      "City Business",
+      "Line Business"
+    ],
+    "range_prezzo": "220-340 €/mese",
+    "link": "https://www.unipolrental.it",
+    "note": "Molto conveniente su veicoli economici."
+  }
+]
