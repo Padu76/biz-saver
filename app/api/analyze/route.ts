@@ -134,11 +134,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convertiamo il file in buffer base64 per la Vision API
+    // Converte il file in base64 (per immagini / pdf singola pagina)
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // Chiamata a OpenAI Vision: il modello vede il documento e restituisce JSON
+    // ⚠️ Nota: per i PDF multipagina al momento analizziamo come se fosse UNA pagina.
+    // Per risultati migliori, usa il PDF della bolletta con la pagina riepilogo oppure un'immagine.
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
       messages: [
@@ -150,16 +152,16 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: [
             {
-              type: "input_text",
+              type: "text",
               text: "Analizza questo documento e restituisci SOLO il JSON richiesto."
             },
             {
-              type: "input_image",
+              type: "image_url",
               image_url: {
                 url: `data:${file.type};base64,${base64Data}`
               }
             }
-          ] as any
+          ]
         }
       ],
       temperature: 0
@@ -172,7 +174,6 @@ export async function POST(req: NextRequest) {
 
     let parsed: AIProfile;
     try {
-      // A volte il modello può restituire testo con triple backtick: ripuliamo
       const cleaned = raw
         .replace(/```json/gi, "")
         .replace(/```/g, "")
@@ -186,8 +187,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validazione minima
-    if (!parsed.categoria || !parsed.spesa_mensile_attuale || !parsed.spesa_annua_attuale) {
+    if (
+      !parsed.categoria ||
+      typeof parsed.spesa_mensile_attuale !== "number" ||
+      typeof parsed.spesa_annua_attuale !== "number"
+    ) {
       throw new Error(
         "La risposta AI non contiene i campi minimi necessari (categoria, spesa_mensile_attuale, spesa_annua_attuale)."
       );
@@ -199,7 +203,8 @@ export async function POST(req: NextRequest) {
       spesa_mensile_attuale: parsed.spesa_mensile_attuale,
       spesa_annua_attuale: parsed.spesa_annua_attuale,
       valuta: parsed.valuta || "EUR",
-      dettagli: parsed.dettagli || {
+      dettagli: {
+        ...(parsed.dettagli || {}),
         filename_originale: file.name
       }
     };
@@ -209,7 +214,6 @@ export async function POST(req: NextRequest) {
       spesa_mensile_attuale: profile.spesa_mensile_attuale
     });
 
-    // Salvataggio su Supabase (se configurato)
     if (supabase) {
       try {
         const best = suggestions[0];
