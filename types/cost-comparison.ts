@@ -1,18 +1,16 @@
-import type { Provider } from "@/lib/providerEngine";
+// types/cost-comparison.ts
+import type {
+  CategoriaProvider,
+  SuggestedAlternative,
+} from "@/lib/providerEngine";
+
+export type { CategoriaProvider, SuggestedAlternative };
 
 export interface CurrentCostProfile {
-  categoria: "energia" | "telefonia_mobile" | "internet" | "assicurazioni" | "noleggio_auto";
+  categoria: CategoriaProvider;
   fornitore_attuale: string;
   spesa_mensile_attuale: number;
   spesa_annua_attuale: number;
   valuta: string;
   dettagli?: Record<string, any>;
-}
-
-export interface SuggestedAlternative {
-  provider: Provider;
-  stima_spesa_mensile: number | null;
-  stima_risparmio_mensile: number | null;
-  stima_risparmio_annuo: number | null;
-  note: string;
 }

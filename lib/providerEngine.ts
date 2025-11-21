@@ -1,4 +1,5 @@
-import providersData from "@/data/providers.json";
+// lib/providerEngine.ts
+// Motore di comparazione offerte + catalogo interno
 
 export type CategoriaProvider =
   | "energia"
@@ -7,119 +8,385 @@ export type CategoriaProvider =
   | "assicurazioni"
   | "noleggio_auto";
 
-export interface Provider {
-  categoria: CategoriaProvider;
-  fornitore: string;
-  tipo_servizi: string;
-  offerte: string[];
-  range_prezzo: string;
-  link: string;
-  note: string;
-}
-
-const providers: Provider[] = providersData as Provider[];
-
-export function getProvidersByCategory(categoria: CategoriaProvider): Provider[] {
-  return providers.filter((p) => p.categoria === categoria);
-}
-
-export function parsePriceRange(range_prezzo: string): { min: number; max: number } | null {
-  if (!range_prezzo) return null;
-
-  const normalized = range_prezzo.replace("–", "-");
-
-  const match = normalized.match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
-  if (!match) return null;
-
-  const min = parseFloat(match[1]);
-  const max = parseFloat(match[2]);
-
-  if (isNaN(min) || isNaN(max)) return null;
-  return { min, max };
-}
-
-export function getAveragePrice(provider: Provider): number | null {
-  const range = parsePriceRange(provider.range_prezzo);
-  if (!range) return null;
-  return (range.min + range.max) / 2;
-}
-
-export function getRankedProvidersByCategory(categoria: CategoriaProvider): Provider[] {
-  const list = getProvidersByCategory(categoria);
-
-  return [...list].sort((a, b) => {
-    const avgA = getAveragePrice(a);
-    const avgB = getAveragePrice(b);
-
-    if (avgA === null && avgB === null) return 0;
-    if (avgA === null) return 1;
-    if (avgB === null) return -1;
-
-    return avgA - avgB;
-  });
-}
-
-export interface CurrentCostProfile {
-  categoria: CategoriaProvider;
-  spesa_mensile_attuale: number;
-  dettagli?: Record<string, any>;
-}
+export type SuggestedTag =
+  | "massimo_risparmio"
+  | "equilibrata"
+  | "flessibile"
+  | "green"
+  | "premium"
+  | "nessuna";
 
 export interface SuggestedAlternative {
-  provider: Provider;
-  stima_spesa_mensile: number | null;
-  stima_risparmio_mensile: number | null;
-  stima_risparmio_annuo: number | null;
-  note: string;
+  id: string;
+  categoria: CategoriaProvider;
+  fornitore: string;
+  nome_offerta: string;
+  tipo_offerta?: string;
+  costo_mensile_stimato: number;
+  risparmio_annuo_stimato: number;
+  risparmio_percentuale: number;
+  vincolo_mesi?: number;
+  link_offerta?: string;
+  note?: string;
+  tag?: SuggestedTag;
+  score: number;
 }
 
-function estimateMonthlyCostFromProvider(provider: Provider): number | null {
-  const avg = getAveragePrice(provider);
-  if (avg === null) return null;
-  return avg;
+interface ProviderOffer {
+  id: string;
+  categoria: CategoriaProvider;
+  fornitore: string;
+  nome_offerta: string;
+  tipo_offerta?: string;
+  costo_mensile_base: number; // € / mese
+  vincolo_mesi?: number;
+  link_offerta?: string;
+  note?: string;
+  tag_predefinito?: SuggestedTag;
 }
 
-export function suggestAlternatives(profile: CurrentCostProfile): SuggestedAlternative[] {
-  const ranked = getRankedProvidersByCategory(profile.categoria);
+// Catalogo interno – versionone MVP (20+ offerte realistiche)
+const PROVIDERS_CATALOG: ProviderOffer[] = [
+  // ENERGIA
+  {
+    id: "eni-business-flex",
+    categoria: "energia",
+    fornitore: "Eni Plenitude",
+    nome_offerta: "Business Flex Luce",
+    tipo_offerta: "Luce business variabile",
+    costo_mensile_base: 9.5,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.eniplenitude.com",
+    note: "Prezzo energia indicizzato ingrosso, ideale per consumi stabili.",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "eni-business-fissa",
+    categoria: "energia",
+    fornitore: "Eni Plenitude",
+    nome_offerta: "Business Fissa 24",
+    tipo_offerta: "Luce business a prezzo fisso",
+    costo_mensile_base: 10.2,
+    vincolo_mesi: 24,
+    link_offerta: "https://www.eniplenitude.com",
+    note: "Prezzo fisso 24 mesi, stabilità su budget energetico.",
+    tag_predefinito: "premium",
+  },
+  {
+    id: "sorgenia-next-business",
+    categoria: "energia",
+    fornitore: "Sorgenia",
+    nome_offerta: "Next Energy Business",
+    tipo_offerta: "Luce business green",
+    costo_mensile_base: 8.9,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.sorgenia.it",
+    note: "Energia 100% rinnovabile, gestione completamente online.",
+    tag_predefinito: "green",
+  },
+  {
+    id: "illumia-business-smart",
+    categoria: "energia",
+    fornitore: "Illumia",
+    nome_offerta: "Business Smart",
+    tipo_offerta: "Luce business indicizzata",
+    costo_mensile_base: 9.1,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.illumia.it",
+    note: "Offerta agile per PMI con consumi medi.",
+    tag_predefinito: "equilibrata",
+  },
 
-  const suggestions: SuggestedAlternative[] = [];
+  // INTERNET
+  {
+    id: "fastweb-fibra-business",
+    categoria: "internet",
+    fornitore: "Fastweb",
+    nome_offerta: "Fibra Business",
+    tipo_offerta: "Fibra FTTH",
+    costo_mensile_base: 28.0,
+    vincolo_mesi: 24,
+    link_offerta: "https://www.fastweb.it",
+    note: "Fibra fino a 1 Gbps, modem incluso, assistenza dedicata.",
+    tag_predefinito: "premium",
+  },
+  {
+    id: "tim-impresa-semplice",
+    categoria: "internet",
+    fornitore: "TIM",
+    nome_offerta: "Impresa Semplice Fibra",
+    tipo_offerta: "Fibra FTTC",
+    costo_mensile_base: 26.0,
+    vincolo_mesi: 24,
+    link_offerta: "https://www.tim.it",
+    note: "Buon compromesso prezzo/prestazioni, brand solido.",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "vodafone-business-fibra",
+    categoria: "internet",
+    fornitore: "Vodafone",
+    nome_offerta: "Business Fibra Ready",
+    tipo_offerta: "Fibra FTTH",
+    costo_mensile_base: 27.5,
+    vincolo_mesi: 24,
+    link_offerta: "https://www.vodafone.it",
+    note: "Fibra top prestazioni, ideale per uffici multi-device.",
+    tag_predefinito: "premium",
+  },
+  {
+    id: "eolo-aziende-fwa",
+    categoria: "internet",
+    fornitore: "Eolo",
+    nome_offerta: "Eolo Ufficio",
+    tipo_offerta: "FWA",
+    costo_mensile_base: 24.0,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.eolo.it",
+    note: "Soluzione valida dove la fibra non arriva.",
+    tag_predefinito: "flessibile",
+  },
 
-  for (const provider of ranked) {
-    const stimaMensile = estimateMonthlyCostFromProvider(provider);
-    if (stimaMensile === null) {
-      suggestions.push({
-        provider,
-        stima_spesa_mensile: null,
-        stima_risparmio_mensile: null,
-        stima_risparmio_annuo: null,
-        note: "Nessuna stima numerica disponibile: confronta condizioni e servizi."
-      });
-      continue;
+  // TELEFONIA MOBILE
+  {
+    id: "iliad-business-unlimited",
+    categoria: "telefonia_mobile",
+    fornitore: "Iliad Business",
+    nome_offerta: "Unlimited Business",
+    tipo_offerta: "Mobile flat",
+    costo_mensile_base: 9.99,
+    link_offerta: "https://www.iliad.it",
+    note: "Minuti/SMS illimitati, tanti GB, nessun vincolo.",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "vodafone-red-business",
+    categoria: "telefonia_mobile",
+    fornitore: "Vodafone",
+    nome_offerta: "Red Business",
+    tipo_offerta: "Mobile aziendale",
+    costo_mensile_base: 14.99,
+    vincolo_mesi: 24,
+    link_offerta: "https://www.vodafone.it",
+    note: "Assistenza dedicata e priorità rete.",
+    tag_predefinito: "premium",
+  },
+  {
+    id: "tim-business-mobile",
+    categoria: "telefonia_mobile",
+    fornitore: "TIM",
+    nome_offerta: "TIM Business Mobile",
+    tipo_offerta: "Mobile aziendale",
+    costo_mensile_base: 12.99,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.tim.it",
+    note: "Offerta equilibrata per flotte aziendali.",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "poste-mobile-professionisti",
+    categoria: "telefonia_mobile",
+    fornitore: "PosteMobile",
+    nome_offerta: "PM Ufficio",
+    tipo_offerta: "Mobile low cost",
+    costo_mensile_base: 7.99,
+    link_offerta: "https://www.postemobile.it",
+    note: "Per chi vuole solo chiamate e pochi GB a basso costo.",
+    tag_predefinito: "massimo_risparmio",
+  },
+
+  // ASSICURAZIONI
+  {
+    id: "unipol-rc-aziendale",
+    categoria: "assicurazioni",
+    fornitore: "UnipolSai",
+    nome_offerta: "RC Azienda Smart",
+    tipo_offerta: "RC aziendale",
+    costo_mensile_base: 45.0,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.unipolsai.it",
+    note: "Copertura ampia per attività di servizi.",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "allianz-ufficio",
+    categoria: "assicurazioni",
+    fornitore: "Allianz",
+    nome_offerta: "Allianz Ufficio",
+    tipo_offerta: "Assicurazione immobile",
+    costo_mensile_base: 40.0,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.allianz.it",
+    note: "Buon compromesso tra premio e coperture.",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "genertel-rc-professionale",
+    categoria: "assicurazioni",
+    fornitore: "Genertel",
+    nome_offerta: "RC Professionale Online",
+    tipo_offerta: "RC professionale",
+    costo_mensile_base: 32.0,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.genertel.it",
+    note: "Gestione full online, premio competitivo.",
+    tag_predefinito: "massimo_risparmio",
+  },
+  {
+    id: "reale-mutua-premium",
+    categoria: "assicurazioni",
+    fornitore: "Reale Mutua",
+    nome_offerta: "Business Premium",
+    tipo_offerta: "Pacchetto completo aziendale",
+    costo_mensile_base: 55.0,
+    vincolo_mesi: 12,
+    link_offerta: "https://www.realemutua.it",
+    note: "Pacchetto completo per aziende con rischio medio-alto.",
+    tag_predefinito: "premium",
+  },
+
+  // NOLEGGIO AUTO
+  {
+    id: "leaseplan-small-business",
+    categoria: "noleggio_auto",
+    fornitore: "LeasePlan",
+    nome_offerta: "Small Business 36",
+    tipo_offerta: "Noleggio 36 mesi 20.000 km/anno",
+    costo_mensile_base: 380.0,
+    vincolo_mesi: 36,
+    link_offerta: "https://www.leaseplan.com",
+    note: "Tutto incluso (RC, Kasko, bollo, manutenzione).",
+    tag_predefinito: "equilibrata",
+  },
+  {
+    id: "ald-business-flex",
+    categoria: "noleggio_auto",
+    fornitore: "ALD Automotive",
+    nome_offerta: "Business Flex 24",
+    tipo_offerta: "Noleggio 24 mesi 15.000 km/anno",
+    costo_mensile_base: 360.0,
+    vincolo_mesi: 24,
+    link_offerta: "https://www.aldautomotive.it",
+    note: "Durata più breve, buona flessibilità.",
+    tag_predefinito: "flessibile",
+  },
+  {
+    id: "arithmos-green-ev",
+    categoria: "noleggio_auto",
+    fornitore: "Arval",
+    nome_offerta: "Green EV Business",
+    tipo_offerta: "Noleggio elettrico 36 mesi",
+    costo_mensile_base: 390.0,
+    vincolo_mesi: 36,
+    link_offerta: "https://www.arval.it",
+    note: "Solo veicoli elettrici, adatta a chi vuole immagine green.",
+    tag_predefinito: "green",
+  },
+  {
+    id: "leasys-economy",
+    categoria: "noleggio_auto",
+    fornitore: "Leasys",
+    nome_offerta: "Economy 48",
+    tipo_offerta: "Noleggio 48 mesi 20.000 km/anno",
+    costo_mensile_base: 340.0,
+    vincolo_mesi: 48,
+    link_offerta: "https://www.leasys.com",
+    note: "Costo più basso, ma vincolo lungo.",
+    tag_predefinito: "massimo_risparmio",
+  },
+];
+
+interface SuggestInput {
+  categoria: CategoriaProvider;
+  spesa_mensile_attuale: number;
+}
+
+// Motore di ranking
+export function suggestAlternatives(
+  input: SuggestInput
+): SuggestedAlternative[] {
+  const { categoria, spesa_mensile_attuale } = input;
+
+  const baseSpesaMensile =
+    spesa_mensile_attuale > 0 ? spesa_mensile_attuale : 1;
+
+  const candidates = PROVIDERS_CATALOG.filter(
+    (offer) => offer.categoria === categoria
+  );
+
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const mapped: SuggestedAlternative[] = candidates.map((offer) => {
+    const risparmioMensile = Math.max(
+      0,
+      baseSpesaMensile - offer.costo_mensile_base
+    );
+    const risparmioAnnuale = risparmioMensile * 12;
+    const perc =
+      baseSpesaMensile > 0 ? risparmioMensile / baseSpesaMensile : 0;
+
+    let score = risparmioAnnuale;
+
+    if (offer.vincolo_mesi && offer.vincolo_mesi > 24) {
+      score -= 40; // penalizza vincoli lunghi
+    } else if (offer.vincolo_mesi && offer.vincolo_mesi <= 12) {
+      score += 20; // premia flessibilità
     }
 
-    const deltaMensile = profile.spesa_mensile_attuale - stimaMensile;
-    const risparmioMensile = deltaMensile > 0 ? deltaMensile : 0;
-    const risparmioAnnuale = risparmioMensile * 12;
+    if (offer.tag_predefinito === "green") {
+      score += 10;
+    }
+    if (offer.tag_predefinito === "premium") {
+      score += 5;
+    }
 
-    suggestions.push({
-      provider,
-      stima_spesa_mensile: stimaMensile,
-      stima_risparmio_mensile: risparmioMensile || null,
-      stima_risparmio_annuo: risparmioAnnuale || null,
-      note:
-        risparmioMensile > 0
-          ? "Potenziale risparmio rispetto alla spesa attuale."
-          : "Questa offerta non sembra più economica di quella attuale."
+    return {
+      id: offer.id,
+      categoria: offer.categoria,
+      fornitore: offer.fornitore,
+      nome_offerta: offer.nome_offerta,
+      tipo_offerta: offer.tipo_offerta,
+      costo_mensile_stimato: offer.costo_mensile_base,
+      risparmio_annuo_stimato: risparmioAnnuale,
+      risparmio_percentuale: perc,
+      vincolo_mesi: offer.vincolo_mesi,
+      link_offerta: offer.link_offerta,
+      note: offer.note,
+      tag: offer.tag_predefinito ?? "nessuna",
+      score,
+    };
+  });
+
+  // Ordina per score decrescente
+  const sorted = mapped.sort((a, b) => b.score - a.score);
+
+  // Etichette intelligenti in base al ranking e alla % di risparmio
+  if (sorted.length > 0) {
+    const maxPerc = Math.max(
+      ...sorted.map((s) => s.risparmio_percentuale || 0)
+    );
+
+    sorted.forEach((s, idx) => {
+      if (idx === 0) {
+        // prima: scelta consigliata => gestita in UI, ma tagdiamo comunque
+        if (s.risparmio_percentuale >= maxPerc * 0.8) {
+          s.tag = "massimo_risparmio";
+        } else {
+          s.tag = s.tag ?? "equilibrata";
+        }
+      } else if (s.vincolo_mesi && s.vincolo_mesi <= 12) {
+        s.tag = "flessibile";
+      } else if (s.tag === "green") {
+        s.tag = "green";
+      } else if (s.tag === "premium") {
+        s.tag = "premium";
+      } else {
+        s.tag = "equilibrata";
+      }
     });
   }
 
-  const conRisparmio = suggestions
-    .filter((s) => s.stima_risparmio_annuo && s.stima_risparmio_annuo > 0)
-    .sort((a, b) => (b.stima_risparmio_annuo || 0) - (a.stima_risparmio_annuo || 0));
-
-  const senzaRisparmio = suggestions.filter(
-    (s) => !s.stima_risparmio_annuo || s.stima_risparmio_annuo <= 0
-  );
-
-  return [...conRisparmio, ...senzaRisparmio];
+  return sorted;
 }

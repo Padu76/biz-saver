@@ -1,102 +1,94 @@
-"use client";
-
+// components/HistoryTable.tsx
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
-interface HistoryRecord {
-  id: string;
-  created_at: string;
-  categoria: string;
+type AnalysisRow = {
+  id: number;
+  created_at: string | null;
+  categoria: string | null;
   fornitore_attuale: string | null;
   spesa_mensile_attuale: number | null;
   spesa_annua_attuale: number | null;
   miglior_risparmio_annuo: number | null;
   filename: string | null;
+};
+
+interface HistoryTableProps {
+  analyses: AnalysisRow[];
 }
 
-interface Props {
-  records: HistoryRecord[];
+function formatDate(value: string | null) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return format(d, "dd MMM yyyy HH:mm", { locale: it });
 }
 
-function formatCurrency(value: number | null | undefined) {
+function formatEuro(value: number | null | undefined) {
   if (value == null) return "-";
-  return new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR"
-  }).format(value);
+  return `${value.toFixed(2)} €`;
 }
 
-export function HistoryTable({ records }: Props) {
-  if (!records || records.length === 0) {
+export function HistoryTable({ analyses }: HistoryTableProps) {
+  if (!analyses || analyses.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-black/50 p-4 text-sm text-slate-300">
-        Nessuna analisi salvata al momento. Carica un documento dalla pagina{" "}
-        <span className="font-semibold text-slate-100">Carica documenti</span> per iniziare
-        a popolare lo storico.
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+        <p className="font-medium">Nessuna analisi salvata.</p>
+        <p className="mt-1 text-slate-400">
+          Carica una bolletta o un contratto dalla sezione &quot;Carica
+          documenti&quot; per iniziare a costruire lo storico risparmi.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-800 bg-black/50">
-      <table className="min-w-full divide-y divide-slate-800 text-sm">
-        <thead className="bg-slate-950/80">
-          <tr>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Data
-            </th>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Categoria
-            </th>
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
-              File
-            </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Spesa mensile
-            </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Spesa annua
-            </th>
-            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Miglior risparmio annuo
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-800 bg-black/40">
-          {records.map((r) => (
-            <tr key={r.id}>
-              <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-300">
-                {r.created_at
-                  ? format(new Date(r.created_at), "dd/MM/yyyy HH:mm", { locale: it })
-                  : "-"}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-200">
-                {r.categoria || "-"}
-              </td>
-              <td className="max-w-[180px] truncate px-3 py-2 text-xs text-slate-400">
-                {r.filename || "-"}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-slate-200">
-                {formatCurrency(r.spesa_mensile_attuale)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-slate-200">
-                {formatCurrency(r.spesa_annua_attuale)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right text-xs">
-                <span
-                  className={
-                    r.miglior_risparmio_annuo && r.miglior_risparmio_annuo > 0
-                      ? "font-semibold text-emerald-300"
-                      : "text-slate-400"
-                  }
-                >
-                  {formatCurrency(r.miglior_risparmio_annuo)}
-                </span>
-              </td>
+    <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/70">
+      <div className="w-full overflow-x-auto">
+        <table className="min-w-full border-collapse text-xs text-slate-200">
+          <thead className="bg-slate-900/80 text-[11px] uppercase tracking-wide text-slate-400">
+            <tr>
+              <th className="px-3 py-2 text-left">Data</th>
+              <th className="px-3 py-2 text-left">Categoria</th>
+              <th className="px-3 py-2 text-left">Fornitore attuale</th>
+              <th className="px-3 py-2 text-right">Spesa mensile</th>
+              <th className="px-3 py-2 text-right">Spesa annua</th>
+              <th className="px-3 py-2 text-right">Miglior risparmio annuo</th>
+              <th className="px-3 py-2 text-left">File</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {analyses.map((row, idx) => (
+              <tr
+                key={row.id ?? idx}
+                className="border-t border-slate-800/60 hover:bg-slate-900/40"
+              >
+                <td className="px-3 py-2 align-middle text-[11px] text-slate-300">
+                  {formatDate(row.created_at)}
+                </td>
+                <td className="px-3 py-2 align-middle text-[11px] capitalize text-slate-200">
+                  {row.categoria || "-"}
+                </td>
+                <td className="px-3 py-2 align-middle text-[11px] text-slate-200">
+                  {row.fornitore_attuale || "-"}
+                </td>
+                <td className="px-3 py-2 align-middle text-right text-[11px]">
+                  {formatEuro(row.spesa_mensile_attuale)}
+                </td>
+                <td className="px-3 py-2 align-middle text-right text-[11px]">
+                  {formatEuro(row.spesa_annua_attuale)}
+                </td>
+                <td className="px-3 py-2 align-middle text-right text-[11px] text-emerald-300">
+                  {formatEuro(row.miglior_risparmio_annuo)}
+                </td>
+                <td className="px-3 py-2 align-middle text-[11px] text-slate-300">
+                  {row.filename || "-"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

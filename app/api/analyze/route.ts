@@ -1,338 +1,185 @@
 import { NextRequest, NextResponse } from "next/server";
-import { suggestAlternatives, type CategoriaProvider } from "@/lib/providerEngine";
-import { supabase } from "@/lib/supabaseClient";
 import OpenAI from "openai";
+import { createClient } from "@/lib/supabaseClient";
+import { suggestAlternatives } from "@/lib/providerEngine";
+import type { CurrentCostProfile } from "@/types/cost-comparison";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
+export const runtime = "nodejs";
+
+// Prompt per estrazione dati
 const SYSTEM_PROMPT = `
-Sei un assistente specializzato nell’analisi di costi aziendali.
+Sei un assistente che legge documenti italiani: bollette, assicurazioni, telefonia, internet, contratti.
+Estrai SOLO i dati richiesti e restituisci un JSON valido.
 
-Riceverai come input:
-- una immagine (foto/scansione) di una bolletta, polizza o contratto
-  OPPURE
-- il testo estratto da un PDF di bolletta, polizza o contratto.
-
-Il tuo compito è:
-1. Capire di che tipo di costo si tratta.
-2. Estrarre i dati economici principali.
-3. Normalizzare tutto in un JSON con questo schema ESATTO:
+RESTITUISCI SOLO QUESTO:
 
 {
-  "categoria": "...",
-  "fornitore_attuale": "...",
-  "spesa_mensile_attuale": 0,
-  "spesa_annua_attuale": 0,
+  "categoria": "energia | internet | telefonia_mobile | assicurazioni | noleggio_auto",
+  "fornitore_attuale": "string",
+  "spesa_mensile_attuale": number,
+  "spesa_annua_attuale": number,
   "valuta": "EUR",
   "dettagli": {
-    "tipo_documento": "...",
-    "data_emissione": "...",
-    "periodo_riferimento": "...",
-    "note": "...",
-    "...": "altri campi specifici per la categoria"
+    "periodo_riferimento": "string|null",
+    "note": "string|null"
   }
 }
 
-Regole IMPORTANTI:
-
-- "categoria" DEVE essere una di queste stringhe:
-  - "telefonia_mobile"
-  - "internet"
-  - "energia"
-  - "assicurazioni"
-  - "noleggio_auto"
-
-- Se la spesa è indicata solo come annua:
-  - metti "spesa_annua_attuale" al valore trovato
-  - e calcola "spesa_mensile_attuale" = spesa_annua / 12 (2 decimali).
-
-- Se la spesa è indicata solo come mensile:
-  - metti "spesa_mensile_attuale"
-  - e calcola "spesa_annua_attuale" = spesa_mensile * 12 (2 decimali).
-
-- Se sono presenti più voci (es. più linee, più veicoli):
-  - considera la SPESA TOTALE complessiva per l’azienda, non per singola linea/veicolo.
-
-Campi specifici consigliati in "dettagli":
-
-- Per "telefonia_mobile":
-  - numero_linee
-  - gb_totali (se possibile)
-  - minuti_illimitati (true/false)
-  - sms_illimitati (true/false)
-  - vincolo_mesi (se indicato)
-
-- Per "internet":
-  - tipo_connessione (fibra, FTTC, ADSL, FWA...)
-  - velocita_download_mbps
-  - velocita_upload_mbps
-  - modem_incluso (true/false)
-  - indirizzo_fornitura (se visibile)
-
-- Per "energia":
-  - tipo_energia (luce, gas, luce+gas)
-  - potenza_impegnata_kw
-  - consumo_periodo_kwh
-  - consumo_annuo_stimato_kwh (se indicato)
-  - quota_potenza
-  - oneri_sistema
-  - altri_costi_rilevanti
-
-- Per "assicurazioni":
-  - tipo_polizza (auto, immobile, RC, ecc.)
-  - veicolo_o_immobile_assicurato
-  - massimale_rc
-  - franchigia
-  - durata_contratto
-  - scadenza_polizza
-
-- Per "noleggio_auto":
-  - modello_veicolo
-  - durata_contratto_mesi
-  - km_annui
-  - servizi_inclusi (manutenzione, assicurazione, gomme, ecc.)
-  - anticipo (se presente)
-
-Output:
-- Rispondi SOLO con un JSON valido.
-- NON aggiungere testo fuori dal JSON.
-- Se qualche campo non è disponibile, omettilo da "dettagli".
+REGOLE:
+- Se trovi importi riferiti al totale da pagare → usa quelli.
+- Se trovi importi bimestrali → calcola mensile = totale / 2.
+- Se il documento mostra solo l’importo annuo → dividi per 12.
+- Mai inventare valori. Se mancano, stima in modo prudente.
+- Output **solo JSON**, senza testo aggiuntivo.
 `;
 
-interface AIProfile {
-  categoria: CategoriaProvider;
-  fornitore_attuale: string;
-  spesa_mensile_attuale: number;
-  spesa_annua_attuale: number;
-  valuta: string;
-  dettagli?: Record<string, any>;
-}
 
-interface AnalyzeResult {
-  profile: AIProfile;
-  suggestions: any[];
-}
-
-async function analyzePdf(buffer: Buffer): Promise<AIProfile> {
+// ---- FUNZIONE: Analisi PDF tramite testuale ----
+async function analyzePdf(buffer: Buffer): Promise<CurrentCostProfile> {
   const pdfParseModule = await import("pdf-parse");
-  // pdf-parse export handling (default/commonjs)
   const pdfParse = (pdfParseModule as any).default || (pdfParseModule as any);
-  const data = await pdfParse(buffer);
-  const fullText: string = String((data as any)?.text || "");
 
-  const truncatedText =
-    fullText.length > 12000 ? fullText.slice(0, 12000) + "\n...[TRUNCATED]..." : fullText;
+  const data = await pdfParse(buffer);
+  const text: string = String((data as any)?.text || "");
+
+  const maxLen = 12000;
+  const truncated = text.length > maxLen ? text.slice(0, maxLen) : text;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
     messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT
-      },
+      { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Di seguito trovi il testo estratto da un PDF di bolletta/polizza/contratto. Analizzalo e restituisci SOLO il JSON richiesto.\n\n${truncatedText}`
+        content: `Estratto testo PDF:\n\n${truncated}`
       }
     ],
-    temperature: 0
+    temperature: 0,
   });
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) {
-    throw new Error("Nessuna risposta ricevuta dal modello AI per il PDF.");
-  }
+  const raw = completion.choices[0].message.content || "";
+  const cleaned = raw.replace(/```json|```/g, "").trim();
 
-  const cleaned = raw
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
-
-  let parsed: any;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Errore nel parse del JSON AI (PDF):", e, "raw:", raw);
-    throw new Error(
-      "Impossibile interpretare la risposta AI come JSON per il PDF. Riprova con un documento più leggibile."
-    );
-  }
-
-  if (
-    !parsed.categoria ||
-    typeof parsed.spesa_mensile_attuale !== "number" ||
-    typeof parsed.spesa_annua_attuale !== "number"
-  ) {
-    throw new Error(
-      "La risposta AI (PDF) non contiene i campi minimi necessari (categoria, spesa_mensile_attuale, spesa_annua_attuale)."
-    );
-  }
-
-  const profile: AIProfile = {
-    categoria: parsed.categoria,
-    fornitore_attuale: parsed.fornitore_attuale || "Fornitore non specificato",
-    spesa_mensile_attuale: parsed.spesa_mensile_attuale,
-    spesa_annua_attuale: parsed.spesa_annua_attuale,
-    valuta: parsed.valuta || "EUR",
-    dettagli: parsed.dettagli || {}
-  };
-
-  return profile;
+  return JSON.parse(cleaned) as CurrentCostProfile;
 }
 
-async function analyzeImage(file: File): Promise<AIProfile> {
+
+// ---- FUNZIONE: Analisi immagine tramite Vision ----
+async function analyzeImage(file: File): Promise<CurrentCostProfile> {
   const arrayBuffer = await file.arrayBuffer();
-  const base64Data = Buffer.from(arrayBuffer).toString("base64");
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
     messages: [
-      {
-        role: "system",
-        content: SYSTEM_PROMPT
-      },
+      { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
         content: [
-          {
-            type: "text",
-            text: "Analizza questa bolletta/polizza/contratto e restituisci SOLO il JSON richiesto."
-          },
+          { type: "text", text: "Leggi questi dati dalla bolletta o contratto:" },
           {
             type: "image_url",
             image_url: {
-              url: `data:${file.type};base64,${base64Data}`
+              url: `data:${file.type};base64,${base64}`
             }
           }
         ]
       }
     ],
-    temperature: 0
+    temperature: 0,
   });
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) {
-    throw new Error("Nessuna risposta ricevuta dal modello AI per l'immagine.");
-  }
+  const raw = completion.choices[0].message.content || "";
+  const cleaned = raw.replace(/```json|```/g, "").trim();
 
-  const cleaned = raw
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
-
-  let parsed: any;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Errore nel parse del JSON AI (immagine):", e, "raw:", raw);
-    throw new Error(
-      "Impossibile interpretare la risposta AI come JSON per l'immagine. Riprova con un'immagine più leggibile."
-    );
-  }
-
-  if (
-    !parsed.categoria ||
-    typeof parsed.spesa_mensile_attuale !== "number" ||
-    typeof parsed.spesa_annua_attuale !== "number"
-  ) {
-    throw new Error(
-      "La risposta AI (immagine) non contiene i campi minimi necessari (categoria, spesa_mensile_attuale, spesa_annua_attuale)."
-    );
-  }
-
-  const profile: AIProfile = {
-    categoria: parsed.categoria,
-    fornitore_attuale: parsed.fornitore_attuale || "Fornitore non specificato",
-    spesa_mensile_attuale: parsed.spesa_mensile_attuale,
-    spesa_annua_attuale: parsed.spesa_annua_attuale,
-    valuta: parsed.valuta || "EUR",
-    dettagli: parsed.dettagli || {}
-  };
-
-  return profile;
+  return JSON.parse(cleaned) as CurrentCostProfile;
 }
 
+
+// ---- ENDPOINT PRINCIPALE ----
 export async function POST(req: NextRequest) {
   try {
+    const supabase = createClient();
+
     const formData = await req.formData();
-    const file = formData.get("file");
+    const file = formData.get("file") as File | null;
 
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "File mancante. Invia un file nel campo 'file' del FormData." },
-        { status: 400 }
-      );
+    if (!file) {
+      return NextResponse.json({ error: "Nessun file caricato." }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "OPENAI_API_KEY non configurata nelle variabili di ambiente." },
-        { status: 500 }
-      );
-    }
+    const mime = file.type;
+    let profile: CurrentCostProfile | null = null;
 
-    const mime = file.type || "";
-    let profile: AIProfile;
-
-    if (mime.startsWith("application/pdf")) {
+    // PDF
+    if (mime === "application/pdf") {
       const buffer = Buffer.from(await file.arrayBuffer());
       profile = await analyzePdf(buffer);
-    } else if (mime.startsWith("image/")) {
+    }
+    // IMMAGINI (Vision)
+    else if (mime.startsWith("image/")) {
       profile = await analyzeImage(file);
-    } else {
+    }
+    else {
       return NextResponse.json(
         {
-          error:
-            "Formato non supportato. Carica un PDF oppure un'immagine (JPG, PNG, WEBP) della bolletta/polizza/contratto."
+          error: `Formato non supportato (${mime}). Usa PDF o immagini.`,
         },
         { status: 400 }
       );
     }
 
-    // Aggiunge info di filename nei dettagli
-    profile.dettagli = {
-      ...(profile.dettagli || {}),
-      filename_originale: file.name
-    };
+    // Validazione minima
+    if (!profile || !profile.categoria) {
+      return NextResponse.json(
+        { error: "Impossibile estrarre dati dal documento." },
+        { status: 422 }
+      );
+    }
 
     const suggestions = suggestAlternatives({
       categoria: profile.categoria,
-      spesa_mensile_attuale: profile.spesa_mensile_attuale
+      spesa_mensile_attuale: profile.spesa_mensile_attuale,
     });
 
-    if (supabase) {
-      try {
-        const best = suggestions[0];
-        const migliorRisparmio =
-          best && best.stima_risparmio_annuo && best.stima_risparmio_annuo > 0
-            ? best.stima_risparmio_annuo
-            : 0;
+    // MIGLIOR RISPARMIO (aggiornato al nuovo naming)
+    const best = suggestions[0];
+    const migliorRisparmio =
+      best && best.risparmio_annuo_stimato > 0
+        ? best.risparmio_annuo_stimato
+        : 0;
 
-        await supabase.from("analyses").insert({
-          categoria: profile.categoria,
-          fornitore_attuale: profile.fornitore_attuale,
-          spesa_mensile_attuale: profile.spesa_mensile_attuale,
-          spesa_annua_attuale: profile.spesa_annua_attuale,
-          miglior_risparmio_annuo: migliorRisparmio,
-          filename: file.name
-        });
-      } catch (e) {
-        console.error("[/api/analyze] Errore inserimento Supabase:", e);
-      }
+    // Salvataggio Supabase
+    try {
+      await supabase.from("analyses").insert({
+        categoria: profile.categoria,
+        fornitore_attuale: profile.fornitore_attuale,
+        spesa_mensile_attuale: profile.spesa_mensile_attuale,
+        spesa_annua_attuale: profile.spesa_annua_attuale,
+        miglior_risparmio_annuo: migliorRisparmio,
+        filename: file.name,
+      });
+    } catch (e) {
+      console.error("[/api/analyze] Errore Supabase:", e);
     }
 
-    const result: AnalyzeResult = {
-      profile,
-      suggestions
-    };
-
-    return NextResponse.json(result);
-  } catch (err: any) {
-    console.error("[/api/analyze] Errore generale:", err);
     return NextResponse.json(
-      { error: err.message || "Errore imprevisto durante l'analisi del documento." },
+      {
+        profile,
+        suggestions,
+      },
+      { status: 200 }
+    );
+  } catch (err: any) {
+    console.error("Errore generale /api/analyze:", err);
+    return NextResponse.json(
+      {
+        error: err?.message || "Errore interno.",
+      },
       { status: 500 }
     );
   }
