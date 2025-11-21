@@ -1,169 +1,185 @@
-"use client";
+import { createClient } from "@/lib/supabaseClient";
 
-import { FormEvent, useState } from "react";
-import { ComparisonReport } from "@/components/ComparisonReport";
-import type {
-  CurrentCostProfile,
-  SuggestedAlternative
-} from "@/types/cost-comparison";
-import type { CategoriaProvider } from "@/lib/providerEngine";
+export const dynamic = "force-dynamic";
 
-interface ApiResponse {
-  suggestions: SuggestedAlternative[];
+type AnalysisRow = {
+  categoria: string | null;
+  spesa_annua_attuale: number | null;
+  miglior_risparmio_annuo: number | null;
+};
+
+type CategoriaAgg = {
+  categoria: string;
+  spesa_totale_annua: number;
+  risparmio_potenziale_annuo: number;
+  numero_documenti: number;
+};
+
+function formatEuro(value: number) {
+  return `${value.toFixed(2)} €`;
 }
 
-const CATEGORIE: { value: CategoriaProvider; label: string }[] = [
-  { value: "telefonia_mobile", label: "Telefonia mobile" },
-  { value: "internet", label: "Internet / Fibra" },
-  { value: "energia", label: "Energia" },
-  { value: "assicurazioni", label: "Assicurazioni" },
-  { value: "noleggio_auto", label: "Noleggio auto" }
-];
+export default async function ReportPage() {
+  const supabase = createClient();
 
-export default function ReportPage() {
-  const [categoria, setCategoria] = useState<CategoriaProvider>("telefonia_mobile");
-  const [spesaMensile, setSpesaMensile] = useState<string>("89");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error } = await supabase
+    .from("analyses")
+    .select("categoria, spesa_annua_attuale, miglior_risparmio_annuo");
 
-  const [profile, setProfile] = useState<CurrentCostProfile | null>(null);
-  const [suggestions, setSuggestions] = useState<SuggestedAlternative[] | null>(null);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-
-    const valore = Number(spesaMensile.replace(",", "."));
-    if (isNaN(valore) || valore <= 0) {
-      setError("Inserisci una spesa mensile valida (es. 89).");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const res = await fetch("/api/suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoria,
-          spesa_mensile_attuale: valore
-        })
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Errore nella richiesta al motore di comparazione.");
-      }
-
-      const data: ApiResponse = await res.json();
-
-      const profilo: CurrentCostProfile = {
-        categoria,
-        fornitore_attuale: "Tuo fornitore attuale",
-        spesa_mensile_attuale: valore,
-        spesa_annua_attuale: valore * 12,
-        valuta: "EUR",
-        dettagli: {}
-      };
-
-      setProfile(profilo);
-      setSuggestions(data.suggestions);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Si è verificato un errore imprevisto.");
-    } finally {
-      setLoading(false);
-    }
+  if (error) {
+    console.error("[Report] Errore caricamento analyses:", error);
   }
+
+  const rows: AnalysisRow[] = (data as any[]) || [];
+
+  const perCategoria = new Map<string, CategoriaAgg>();
+
+  for (const row of rows) {
+    const cat = (row.categoria || "Altro").toString();
+    const spesa = Number(row.spesa_annua_attuale ?? 0) || 0;
+    const risparmio = Number(row.miglior_risparmio_annuo ?? 0) || 0;
+
+    if (!perCategoria.has(cat)) {
+      perCategoria.set(cat, {
+        categoria: cat,
+        spesa_totale_annua: 0,
+        risparmio_potenziale_annuo: 0,
+        numero_documenti: 0,
+      });
+    }
+
+    const agg = perCategoria.get(cat)!;
+    agg.spesa_totale_annua += spesa;
+    agg.risparmio_potenziale_annuo += risparmio;
+    agg.numero_documenti += 1;
+  }
+
+  const categorie = Array.from(perCategoria.values()).sort(
+    (a, b) => b.risparmio_potenziale_annuo - a.risparmio_potenziale_annuo
+  );
+
+  const totaleSpesa = categorie.reduce(
+    (sum, c) => sum + c.spesa_totale_annua,
+    0
+  );
+  const totaleRisparmio = categorie.reduce(
+    (sum, c) => sum + c.risparmio_potenziale_annuo,
+    0
+  );
+  const percentualeMedia =
+    totaleSpesa > 0 ? (totaleRisparmio / totaleSpesa) * 100 : 0;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Report di comparazione</h1>
+        <h1 className="text-2xl font-semibold">Report risparmi</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-300">
-          Inserisci la categoria di spesa e quanto stai pagando al mese. Il motore confronterà
-          la tua spesa con il catalogo di fornitori e ti suggerirà alternative più convenienti.
+          Riepilogo dei risparmi potenziali stimati sulle bollette e sui contratti
+          caricati. I valori sono calcolati sulla base dei confronti con il catalogo
+          interno di offerte.
         </p>
       </div>
 
-      {/* FORM DI INPUT */}
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-xl border border-slate-800 bg-black/50 p-4 text-sm space-y-4"
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">
-              Categoria di spesa
-            </label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value as CategoriaProvider)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-            >
-              {CATEGORIE.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+      {/* KPI principali */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+          <div className="text-[11px] uppercase tracking-wide text-slate-400">
+            Spesa annua analizzata
           </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-300">
-              Spesa mensile attuale (€)
-            </label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={spesaMensile}
-              onChange={(e) => setSpesaMensile(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 shadow-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-              placeholder="Es. 89"
-            />
-            <span className="text-[11px] text-slate-500">
-              Usa l&apos;importo totale mensile (tutte le linee/veicoli inclusi).
-            </span>
+          <div className="mt-1 text-2xl font-semibold">
+            {formatEuro(totaleSpesa)}
           </div>
-
-          <div className="flex items-end">
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex w-full items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-black shadow-lg shadow-accent/40 hover:bg-accent/90 disabled:cursor-not-allowed disabled:bg-accent/60"
-            >
-              {loading ? "Calcolo in corso..." : "Calcola alternative"}
-            </button>
+          <div className="mt-1 text-xs text-slate-400">
+            Somma delle spese annuali stimate sui documenti caricati.
           </div>
         </div>
 
-        {error && (
-          <p className="text-xs text-red-400">
-            {error}
-          </p>
+        <div className="rounded-2xl border border-emerald-700/60 bg-emerald-950/30 p-4 text-sm text-emerald-50">
+          <div className="text-[11px] uppercase tracking-wide text-emerald-200">
+            Risparmio potenziale annuo
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-300">
+            {formatEuro(totaleRisparmio)}
+          </div>
+          <div className="mt-1 text-xs text-emerald-100/80">
+            Somma dei risparmi annui massimi stimati rispetto ai contratti attuali.
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+          <div className="text-[11px] uppercase tracking-wide text-slate-400">
+            Risparmio medio potenziale
+          </div>
+          <div className="mt-1 text-2xl font-semibold">
+            {percentualeMedia.toFixed(1)}%
+          </div>
+          <div className="mt-1 text-xs text-slate-400">
+            Rapporto tra risparmio potenziale e spesa totale analizzata.
+          </div>
+        </div>
+      </div>
+
+      {/* Tabella per categoria */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-100">
+          Ripartizione per categoria
+        </h2>
+        {categorie.length === 0 ? (
+          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+            Nessun dato ancora disponibile. Carica una bolletta o un contratto per
+            iniziare a popolare il report.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/70">
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-full border-collapse text-xs text-slate-200">
+                <thead className="bg-slate-900/80 text-[11px] uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Categoria</th>
+                    <th className="px-3 py-2 text-right">Spesa annua</th>
+                    <th className="px-3 py-2 text-right">
+                      Risparmio potenziale annuo
+                    </th>
+                    <th className="px-3 py-2 text-right">% risparmio</th>
+                    <th className="px-3 py-2 text-right">Documenti</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categorie.map((c) => {
+                    const perc =
+                      c.spesa_totale_annua > 0
+                        ? (c.risparmio_potenziale_annuo / c.spesa_totale_annua) *
+                          100
+                        : 0;
+                    return (
+                      <tr
+                        key={c.categoria}
+                        className="border-t border-slate-800/60 hover:bg-slate-900/40"
+                      >
+                        <td className="px-3 py-2 text-[11px] capitalize">
+                          {c.categoria}
+                        </td>
+                        <td className="px-3 py-2 text-right text-[11px]">
+                          {formatEuro(c.spesa_totale_annua)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-[11px] text-emerald-300">
+                          {formatEuro(c.risparmio_potenziale_annuo)}
+                        </td>
+                        <td className="px-3 py-2 text-right text-[11px]">
+                          {perc.toFixed(1)}%
+                        </td>
+                        <td className="px-3 py-2 text-right text-[11px]">
+                          {c.numero_documenti}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
-      </form>
-
-      {/* REPORT DINAMICO */}
-      {profile && suggestions && suggestions.length > 0 && (
-        <ComparisonReport profile={profile} suggestions={suggestions} />
-      )}
-
-      {profile && suggestions && suggestions.length === 0 && (
-        <div className="rounded-xl border border-slate-800 bg-black/50 p-4 text-sm text-slate-300">
-          Nessuna alternativa più conveniente trovata per questa categoria con la spesa attuale
-          indicata. Puoi comunque usare il report per verificare le offerte presenti nel mercato.
-        </div>
-      )}
-
-      {!profile && (
-        <div className="rounded-xl border border-slate-800 bg-black/40 p-4 text-xs text-slate-400">
-          Suggerimento: carica prima qualche bolletta dalla pagina{" "}
-          <span className="font-semibold text-slate-200">“Carica documenti”</span>,
-          poi usa qui la spesa mensile risultante per vedere quanto potresti risparmiare.
-        </div>
-      )}
+      </div>
     </div>
   );
 }
