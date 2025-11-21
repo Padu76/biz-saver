@@ -55,9 +55,9 @@ export default function UploadPage() {
       <div>
         <h1 className="text-2xl font-semibold">Carica documenti</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-300">
-          Carica una bolletta, una polizza o un contratto (PDF o immagine). L&apos;AI legger&agrave;
-          il documento, estrarr&agrave; i costi principali e confronter&agrave; automaticamente
-          le tue spese con le offerte a catalogo.
+          Carica una foto o una scansione della tua bolletta, polizza o contratto. L&apos;AI
+          legger&agrave; il documento, estrarr&agrave; i costi principali e confronter&agrave;
+          automaticamente le tue spese con le offerte a catalogo.
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export default function UploadPage() {
         <div className="flex flex-col items-center justify-center gap-3 text-center">
           <input
             type="file"
-            accept=".pdf,image/*"
+            accept="image/*"
             onChange={(e) => {
               const f = e.target.files?.[0] || null;
               setFile(f);
@@ -82,10 +82,10 @@ export default function UploadPage() {
             htmlFor="file-input"
             className="inline-flex cursor-pointer items-center justify-center rounded-full border border-slate-600 bg-slate-950 px-4 py-2 text-xs font-medium text-slate-100 hover:border-accent hover:text-accent"
           >
-            Seleziona un file (PDF o immagine)
+            Seleziona un&apos;immagine (JPG, PNG, WEBP)
           </label>
           <p className="text-xs text-slate-400">
-            Formati supportati: PDF, JPG, PNG, WEBP &middot; Max 10MB per file
+            Formati supportati: JPG, PNG, WEBP &middot; Max 10MB per file
           </p>
           {file && (
             <p className="text-xs text-emerald-300">
@@ -108,8 +108,8 @@ export default function UploadPage() {
 
         {!error && !result && (
           <p className="text-xs text-slate-500">
-            Suggerimento: per risultati migliori, carica il PDF o la pagina riepilogo della bolletta
-            con i totali ben visibili (importo da pagare, periodo di riferimento, ecc.).
+            Suggerimento: usa la pagina riepilogo con importo totale e periodo di riferimento ben
+            leggibili. Se hai un PDF, fai uno screenshot della pagina riepilogo e carica l&apos;immagine.
           </p>
         )}
       </form>
@@ -131,8 +131,8 @@ export default function UploadPage() {
               </span>
             </p>
             <p className="mt-1 text-slate-400">
-              I dati sono stati estratti automaticamente dal documento caricato. Controlla sempre
-              che importi e categoria siano coerenti prima di agire sui cambi di fornitore.
+              I dati sono stati estratti automaticamente dall&apos;immagine caricata. Controlla
+              sempre che importi e categoria siano coerenti prima di agire sui cambi di fornitore.
             </p>
           </div>
 

@@ -10,7 +10,7 @@ const openai = new OpenAI({
 const SYSTEM_PROMPT = `
 Sei un assistente specializzato nell’analisi di costi aziendali.
 
-Riceverai come input l'immagine o il PDF di:
+Riceverai come input l'immagine di:
 - una bolletta (telefonia, internet, energia),
 - oppure una polizza assicurativa,
 - oppure un contratto/fattura di noleggio auto.
@@ -135,21 +135,18 @@ export async function POST(req: NextRequest) {
     }
 
     const mime = file.type || "";
-    if (!mime.startsWith("image/") && !mime.startsWith("application/pdf")) {
+    if (!mime.startsWith("image/")) {
       return NextResponse.json(
         {
           error:
-            "Formato non supportato. Carica una immagine (JPG, PNG) o un PDF della bolletta/polizza/contratto."
+            "Per il momento sono supportate solo immagini (JPG, PNG, WEBP). Esporta la pagina riepilogo della bolletta come immagine o fai uno screenshot e ricarica."
         },
         { status: 400 }
       );
     }
 
-    // Carica il file su OpenAI per uso vision (immagini + PDF)
-    const uploadedFile = await openai.files.create({
-      file,
-      purpose: "vision"
-    });
+    const arrayBuffer = await file.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
@@ -163,14 +160,15 @@ export async function POST(req: NextRequest) {
           content: [
             {
               type: "text",
-              text: "Analizza questo documento e restituisci SOLO il JSON richiesto."
+              text: "Analizza questa bolletta/polizza/contratto e restituisci SOLO il JSON richiesto."
             },
             {
-              // cast a any per evitare l'errore di typings su 'file'
-              type: "file",
-              file_id: uploadedFile.id
-            } as any
-          ] as any
+              type: "image_url",
+              image_url: {
+                url: `data:${file.type};base64,${base64Data}`
+              }
+            }
+          ]
         }
       ],
       temperature: 0
@@ -192,7 +190,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error("Errore nel parse del JSON AI:", e, "raw:", raw);
       throw new Error(
-        "Impossibile interpretare la risposta AI come JSON. Riprova con un documento più leggibile."
+        "Impossibile interpretare la risposta AI come JSON. Riprova con un'immagine più leggibile (fronte riepilogo, importi ben visibili)."
       );
     }
 
