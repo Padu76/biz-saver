@@ -1,139 +1,127 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabaseClient";
-import type { CurrentCostProfile } from "@/types/cost-comparison";
+import {
+  type CurrentCostProfile,
+  type CategoriaProvider,
+} from "@/types/cost-comparison";
+import { suggestAlternatives } from "@/lib/providerEngine";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 export const runtime = "nodejs";
 
+// ------------------ PROMPT MIGLIORATO ------------------
 const SYSTEM_PROMPT = `
-Sei un assistente che analizza documenti ITALIANI di costi aziendali:
-- bollette luce/gas
-- offerte internet/fibra
-- contratti / fatture telefonia mobile
-- polizze assicurative
-- contratti di noleggio auto a lungo termine.
+Sei un analista italiano di costi aziendali.
 
-Devi estrarre i dati ECONOMICI principali e normalizzarli in questo JSON ESATTO:
+Leggi documenti di:
+- bollette energia
+- bollette gas
+- telefonia mobile business
+- internet/fibra business
+- assicurazioni
+- noleggio auto lungo termine
+
+ESTRAI SOLO QUESTO JSON:
 
 {
-  "categoria": "energia | internet | telefonia_mobile | assicurazioni | noleggio_auto",
+  "categoria": "energia | gas | telefonia_mobile | internet | assicurazioni | noleggio_auto",
+  "tipo_documento": "string | null",
   "fornitore_attuale": "string",
   "spesa_mensile_attuale": number,
   "spesa_annua_attuale": number,
   "valuta": "EUR",
   "dettagli": {
     "periodo_riferimento": "string | null",
-    "tipo_documento": "string | null",
     "note": "string | null"
   }
 }
 
-REGOLE IMPORTANTI:
+REGOLE:
 
-- "categoria" DEVE essere UNA SOLA tra:
-  - "energia"
-  - "internet"
-  - "telefonia_mobile"
-  - "assicurazioni"
-  - "noleggio_auto"
+- Se la bolletta è bimestrale → dividi per 2.
+- Se esiste solo spesa annua → dividi per 12.
+- Se trovi canone mensile → moltiplica per 12.
+- Usa SEMPRE numeri, non stringhe. Separatore decimale con il punto: 121.76 (non "121,76").
+- "valuta" deve essere sempre "EUR".
 
-- "fornitore_attuale": usa il nome dell'azienda che emette la bolletta/contratto (es. ENEL ENERGIA, TIM, VODAFONE, UNIPOLSAI, LEASEPLAN...).
-
-- IMPORTI:
-  - Se vedi un importo TOTALE da pagare per un PERIODO (mese, bimestre, ecc.), usa quello.
-  - Se la bolletta è BIMESTRALE: calcola spesa_mensile_attuale = totale / 2.
-  - Se nel documento è indicato SOLO un importo annuo o un premio annuale:
-      - spesa_annua_attuale = importo annuo
-      - spesa_mensile_attuale = importo annuo / 12
-  - Se vedi importi mensili di canone/abbonamento:
-      - spesa_mensile_attuale = canone mensile
-      - spesa_annua_attuale = canone mensile * 12
-
-- VALORI NUMERICI:
-  - Usa numeri, NON stringhe.
-  - Usa il punto come separatore decimale (es. 121.76, non "121,76").
-
-- "valuta": usa SEMPRE "EUR".
-
-- "dettagli":
-  - "periodo_riferimento": se trovi "fattura dal ... al ..." o "conguaglio ...", inserisci una stringa sintetica.
-  - "tipo_documento": esempio "bolletta luce", "fattura telefonia mobile", "polizza RC auto", "contratto noleggio auto".
-  - "note": eventuali info utili (es. "importo include IVA", "bolletta di conguaglio", ecc.).
-
-NON aggiungere testo fuori dal JSON.
-Rispondi SOLO con un JSON valido.
+NON aggiungere alcun testo fuori dal JSON.
 `;
 
-// categorie valide per sicurezza
-const VALID_CATEGORIES = [
+// categorie supportate dal motore di confronto
+const VALID_CATEGORIES: CategoriaProvider[] = [
   "energia",
-  "internet",
   "telefonia_mobile",
+  "internet",
   "assicurazioni",
   "noleggio_auto",
-] as const;
-type ValidCategoria = (typeof VALID_CATEGORIES)[number];
+];
 
+// ------------------ NORMALIZZAZIONE ------------------
 function normalizeProfile(raw: any): CurrentCostProfile {
-  // categoria
-  let categoria: ValidCategoria = "energia";
+  let categoria: CategoriaProvider = "energia";
+
   if (typeof raw.categoria === "string") {
-    const catLower = raw.categoria.toLowerCase();
-    const match = VALID_CATEGORIES.find((c) => c === catLower);
-    if (match) {
-      categoria = match;
+    const c = raw.categoria.toLowerCase().trim();
+
+    if (c === "gas") {
+      // interno: "gas" lo trattiamo come "energia"
+      categoria = "energia";
+    } else {
+      const match = (VALID_CATEGORIES as readonly string[]).find(
+        (cat) => cat === c
+      );
+      if (match) {
+        categoria = match as CategoriaProvider;
+      }
     }
   }
 
-  // importi
-  const rawMensile = Number(raw.spesa_mensile_attuale ?? 0) || 0;
-  const rawAnnua = Number(raw.spesa_annua_attuale ?? 0) || 0;
+  const mensile = Number(raw.spesa_mensile_attuale ?? 0) || 0;
+  const annua = Number(raw.spesa_annua_attuale ?? 0) || 0;
 
-  let spesaMensile = rawMensile;
-  let spesaAnnua = rawAnnua;
+  let m = mensile;
+  let a = annua;
 
-  if (spesaMensile > 0 && spesaAnnua === 0) {
-    spesaAnnua = spesaMensile * 12;
-  } else if (spesaAnnua > 0 && spesaMensile === 0) {
-    spesaMensile = spesaAnnua / 12;
-  }
+  if (m > 0 && a === 0) a = m * 12;
+  if (a > 0 && m === 0) m = a / 12;
 
-  // sicurezza minima: niente NaN
-  if (!Number.isFinite(spesaMensile)) spesaMensile = 0;
-  if (!Number.isFinite(spesaAnnua)) spesaAnnua = 0;
+  if (!Number.isFinite(m)) m = 0;
+  if (!Number.isFinite(a)) a = 0;
 
   const fornitore =
-    typeof raw.fornitore_attuale === "string" && raw.fornitore_attuale.trim().length > 0
+    typeof raw.fornitore_attuale === "string" &&
+    raw.fornitore_attuale.trim().length > 0
       ? raw.fornitore_attuale.trim()
-      : "Fornitore non specificato";
+      : "Non specificato";
 
   const dettagli =
     raw.dettagli && typeof raw.dettagli === "object" ? raw.dettagli : {};
 
   return {
     categoria,
+    tipo_documento:
+      typeof raw.tipo_documento === "string" ? raw.tipo_documento : null,
     fornitore_attuale: fornitore,
-    spesa_mensile_attuale: spesaMensile,
-    spesa_annua_attuale: spesaAnnua,
-    valuta: typeof raw.valuta === "string" && raw.valuta.trim() !== "" ? raw.valuta : "EUR",
+    spesa_mensile_attuale: m,
+    spesa_annua_attuale: a,
+    valuta:
+      typeof raw.valuta === "string" && raw.valuta.trim() !== ""
+        ? raw.valuta
+        : "EUR",
     dettagli,
   };
 }
 
-// ---- FUNZIONE: analisi PDF -> testo ----
+// ------------------ ANALISI PDF ------------------
 async function analyzePdf(buffer: Buffer): Promise<CurrentCostProfile> {
-  const pdfParseModule = await import("pdf-parse");
-  const pdfParse = (pdfParseModule as any).default || (pdfParseModule as any);
+  const pdfModule = await import("pdf-parse");
+  const pdfParse = (pdfModule as any).default || (pdfModule as any);
 
   const data = await pdfParse(buffer);
   const fullText: string = String((data as any)?.text || "");
-
-  const maxLen = 12000;
-  const truncated = fullText.length > maxLen ? fullText.slice(0, maxLen) : fullText;
+  const cut = fullText.length > 12000 ? fullText.slice(0, 12000) : fullText;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
@@ -141,7 +129,9 @@ async function analyzePdf(buffer: Buffer): Promise<CurrentCostProfile> {
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Di seguito trovi il testo estratto da un PDF di bolletta/assicurazione/contratto. Analizza il contenuto e restituisci SOLO il JSON richiesto.\n\n${truncated}`,
+        content:
+          "Di seguito trovi il testo estratto da un PDF di bolletta/assicurazione/contratto. Analizza e restituisci SOLO il JSON richiesto.\n\n" +
+          cut,
       },
     ],
     temperature: 0,
@@ -155,16 +145,18 @@ async function analyzePdf(buffer: Buffer): Promise<CurrentCostProfile> {
     parsed = JSON.parse(cleaned);
   } catch (e) {
     console.error("[analyzePdf] Errore parse JSON:", e, "RAW:", raw);
-    throw new Error("Impossibile interpretare il PDF. Prova con un documento più leggibile.");
+    throw new Error(
+      "Impossibile interpretare il PDF. Prova con un documento più leggibile."
+    );
   }
 
   return normalizeProfile(parsed);
 }
 
-// ---- FUNZIONE: analisi immagine -> Vision ----
+// ------------------ ANALISI IMMAGINE ------------------
 async function analyzeImage(file: File): Promise<CurrentCostProfile> {
-  const arrayBuffer = await file.arrayBuffer();
-  const base64 = Buffer.from(arrayBuffer).toString("base64");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const base64 = buffer.toString("base64");
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4.1-mini",
@@ -205,7 +197,7 @@ async function analyzeImage(file: File): Promise<CurrentCostProfile> {
   return normalizeProfile(parsed);
 }
 
-// ---- ENDPOINT PRINCIPALE ----
+// ------------------ ENDPOINT PRINCIPALE ------------------
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient();
@@ -213,7 +205,10 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "Nessun file caricato." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Nessun file caricato." },
+        { status: 400 }
+      );
     }
 
     const mime = file.type || "";
@@ -226,55 +221,69 @@ export async function POST(req: NextRequest) {
       profile = await analyzeImage(file);
     } else {
       return NextResponse.json(
-        { error: `Formato non supportato (${mime}). Usa PDF o immagini.` },
+        {
+          error: `Formato non supportato (${mime}). Usa PDF o immagini.`,
+        },
         { status: 400 }
       );
     }
 
-    // arricchisco dettagli con filename
+    // Aggiorno dettagli con filename
     profile.dettagli = {
       ...(profile.dettagli || {}),
       filename_originale: file.name,
     };
 
-    // calcolo alternative
-    const { suggestAlternatives } = await import("@/lib/providerEngine");
+    // Calcolo alternative dal motore interno
     const suggestions = suggestAlternatives({
       categoria: profile.categoria,
       spesa_mensile_attuale: profile.spesa_mensile_attuale,
     });
 
-    const best = suggestions[0];
+    // Arricchisco con flag is_best
+    const enriched = suggestions.map((s, idx) => ({
+      ...s,
+      is_best: idx === 0,
+    }));
+
+    const best = enriched[0];
     const migliorRisparmio =
-      best && best.risparmio_annuo_stimato && best.risparmio_annuo_stimato > 0
+      best && best.risparmio_annuo_stimato > 0
         ? best.risparmio_annuo_stimato
         : 0;
 
-    // salvataggio su Supabase
+    // Salvataggio su Supabase (incluso alternatives JSONB)
     try {
       await supabase.from("analyses").insert({
         categoria: profile.categoria,
+        tipo_documento: profile.tipo_documento ?? null,
         fornitore_attuale: profile.fornitore_attuale,
         spesa_mensile_attuale: profile.spesa_mensile_attuale,
         spesa_annua_attuale: profile.spesa_annua_attuale,
         miglior_risparmio_annuo: migliorRisparmio,
+        alternatives: enriched,
         filename: file.name,
       });
     } catch (e) {
       console.error("[/api/analyze] Errore Supabase:", e);
+      // non blocchiamo la risposta all'utente se il salvataggio fallisce
     }
 
     return NextResponse.json(
       {
         profile,
-        suggestions,
+        alternatives: enriched,
       },
       { status: 200 }
     );
   } catch (err: any) {
     console.error("[/api/analyze] Errore generale:", err);
     return NextResponse.json(
-      { error: err?.message || "Errore interno durante l'analisi del documento." },
+      {
+        error:
+          err?.message ||
+          "Errore interno durante l'analisi del documento. Riprova più tardi.",
+      },
       { status: 500 }
     );
   }

@@ -12,6 +12,34 @@ interface AnalyzeResponse {
   suggestions: SuggestedAlternative[];
 }
 
+const CATEGORIES = [
+  {
+    key: "energia",
+    label: "Utenze energia / gas",
+    desc: "Bollette luce, gas, forniture energetiche per uffici e attività.",
+  },
+  {
+    key: "internet",
+    label: "Internet / Fibra",
+    desc: "Connessioni fibra, FTTC, FWA per uffici e studi professionali.",
+  },
+  {
+    key: "telefonia_mobile",
+    label: "Telefonia mobile business",
+    desc: "Sim aziendali, flotte mobile, bundle voce + dati.",
+  },
+  {
+    key: "assicurazioni",
+    label: "Assicurazioni",
+    desc: "Polizze RC, assicurazioni auto, uffici, responsabilità professionale.",
+  },
+  {
+    key: "noleggio_auto",
+    label: "Noleggio auto lungo termine",
+    desc: "Contratti di noleggio per veicoli aziendali e auto di servizio.",
+  },
+];
+
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,7 +73,12 @@ export default function UploadPage() {
         );
       }
 
-      const data: AnalyzeResponse = await res.json();
+      const raw = await res.json();
+      const data: AnalyzeResponse = {
+        profile: raw.profile,
+        suggestions: raw.alternatives ?? [],
+      };
+
       setResult(data);
     } catch (err: any) {
       console.error(err);
@@ -56,20 +89,40 @@ export default function UploadPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* HEADER */}
-      <div>
+      <div className="space-y-2">
         <h1 className="text-2xl font-semibold">Carica documenti</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-300">
+        <p className="max-w-2xl text-sm text-slate-300">
           Carica una bolletta, una polizza o un contratto{" "}
           <span className="font-semibold">in PDF oppure come immagine</span>.
           L&apos;AI legge il documento, estrae i costi principali e li confronta
-          automaticamente con le offerte a catalogo.
+          con le offerte del catalogo interno.
         </p>
-        <p className="mt-1 max-w-2xl text-xs text-emerald-300">
-          Questa sezione usa i dati reali estratti dall&apos;AI, non è più una
-          simulazione.
+        <p className="max-w-2xl text-xs text-emerald-300">
+          I dati che vedi nel report sono basati sulle informazioni reali
+          estratte dal documento, non sono più mockati.
         </p>
+      </div>
+
+      {/* CATEGORIE SUPPORTATE */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-100">
+          Cosa puoi analizzare
+        </h2>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {CATEGORIES.map((cat) => (
+            <div
+              key={cat.key}
+              className="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {cat.label}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-300">{cat.desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* FORM UPLOAD */}
@@ -97,7 +150,7 @@ export default function UploadPage() {
             Seleziona un file (PDF o immagine)
           </label>
           <p className="text-xs text-slate-400">
-            Formati supportati: PDF, JPG, PNG, WEBP &middot; Max 10MB per file
+            Formati supportati: PDF, JPG, PNG, WEBP · Max 10MB per file
           </p>
           {file && (
             <p className="text-xs text-emerald-300">
@@ -121,14 +174,13 @@ export default function UploadPage() {
 
         {!error && !result && (
           <p className="text-xs text-slate-500">
-            Suggerimento: per PDF molto lunghi carica la bolletta/contratto
-            sintetico con i totali ben visibili (importo da pagare, periodo,
-            fornitore, ecc.).
+            Suggerimento: per PDF molto lunghi carica il documento con i totali
+            ben visibili (importo da pagare, periodo, fornitore, ecc.).
           </p>
         )}
       </form>
 
-      {/* RISULTATO AI REALE */}
+      {/* RISULTATO */}
       {result && (
         <div className="space-y-4">
           <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300">
@@ -139,6 +191,14 @@ export default function UploadPage() {
               Categoria rilevata:{" "}
               <span className="font-semibold">{result.profile.categoria}</span>
             </p>
+            {result.profile.tipo_documento && (
+              <p>
+                Tipo documento:{" "}
+                <span className="font-semibold">
+                  {result.profile.tipo_documento}
+                </span>
+              </p>
+            )}
             <p>
               Fornitore attuale:{" "}
               <span className="font-semibold">
@@ -153,9 +213,8 @@ export default function UploadPage() {
               </span>
             </p>
             <p className="mt-1 text-slate-400">
-              I dati sopra sono stati estratti automaticamente dal documento
-              caricato (PDF o immagine). Verifica che importi e categoria siano
-              coerenti prima di procedere con eventuali cambi di fornitore.
+              Verifica sempre che importi e categoria siano coerenti con il
+              documento, prima di cambiare fornitore.
             </p>
           </div>
 
