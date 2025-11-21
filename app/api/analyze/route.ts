@@ -10,10 +10,10 @@ const openai = new OpenAI({
 const SYSTEM_PROMPT = `
 Sei un assistente specializzato nell’analisi di costi aziendali.
 
-Riceverai come input l'immagine di:
-- una bolletta (telefonia, internet, energia),
-- oppure una polizza assicurativa,
-- oppure un contratto/fattura di noleggio auto.
+Riceverai come input:
+- una immagine (foto/scansione) di una bolletta, polizza o contratto
+  OPPURE
+- il testo estratto da un PDF di bolletta, polizza o contratto.
 
 Il tuo compito è:
 1. Capire di che tipo di costo si tratta.
@@ -115,6 +115,145 @@ interface AnalyzeResult {
   suggestions: any[];
 }
 
+async function analyzePdf(buffer: Buffer): Promise<AIProfile> {
+  const pdfParseModule = await import("pdf-parse");
+  // pdf-parse export handling (default/commonjs)
+  const pdfParse = (pdfParseModule as any).default || (pdfParseModule as any);
+  const data = await pdfParse(buffer);
+  const fullText: string = String((data as any)?.text || "");
+
+  const truncatedText =
+    fullText.length > 12000 ? fullText.slice(0, 12000) + "\n...[TRUNCATED]..." : fullText;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content: SYSTEM_PROMPT
+      },
+      {
+        role: "user",
+        content: `Di seguito trovi il testo estratto da un PDF di bolletta/polizza/contratto. Analizzalo e restituisci SOLO il JSON richiesto.\n\n${truncatedText}`
+      }
+    ],
+    temperature: 0
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) {
+    throw new Error("Nessuna risposta ricevuta dal modello AI per il PDF.");
+  }
+
+  const cleaned = raw
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Errore nel parse del JSON AI (PDF):", e, "raw:", raw);
+    throw new Error(
+      "Impossibile interpretare la risposta AI come JSON per il PDF. Riprova con un documento più leggibile."
+    );
+  }
+
+  if (
+    !parsed.categoria ||
+    typeof parsed.spesa_mensile_attuale !== "number" ||
+    typeof parsed.spesa_annua_attuale !== "number"
+  ) {
+    throw new Error(
+      "La risposta AI (PDF) non contiene i campi minimi necessari (categoria, spesa_mensile_attuale, spesa_annua_attuale)."
+    );
+  }
+
+  const profile: AIProfile = {
+    categoria: parsed.categoria,
+    fornitore_attuale: parsed.fornitore_attuale || "Fornitore non specificato",
+    spesa_mensile_attuale: parsed.spesa_mensile_attuale,
+    spesa_annua_attuale: parsed.spesa_annua_attuale,
+    valuta: parsed.valuta || "EUR",
+    dettagli: parsed.dettagli || {}
+  };
+
+  return profile;
+}
+
+async function analyzeImage(file: File): Promise<AIProfile> {
+  const arrayBuffer = await file.arrayBuffer();
+  const base64Data = Buffer.from(arrayBuffer).toString("base64");
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [
+      {
+        role: "system",
+        content: SYSTEM_PROMPT
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "Analizza questa bolletta/polizza/contratto e restituisci SOLO il JSON richiesto."
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:${file.type};base64,${base64Data}`
+            }
+          }
+        ]
+      }
+    ],
+    temperature: 0
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) {
+    throw new Error("Nessuna risposta ricevuta dal modello AI per l'immagine.");
+  }
+
+  const cleaned = raw
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Errore nel parse del JSON AI (immagine):", e, "raw:", raw);
+    throw new Error(
+      "Impossibile interpretare la risposta AI come JSON per l'immagine. Riprova con un'immagine più leggibile."
+    );
+  }
+
+  if (
+    !parsed.categoria ||
+    typeof parsed.spesa_mensile_attuale !== "number" ||
+    typeof parsed.spesa_annua_attuale !== "number"
+  ) {
+    throw new Error(
+      "La risposta AI (immagine) non contiene i campi minimi necessari (categoria, spesa_mensile_attuale, spesa_annua_attuale)."
+    );
+  }
+
+  const profile: AIProfile = {
+    categoria: parsed.categoria,
+    fornitore_attuale: parsed.fornitore_attuale || "Fornitore non specificato",
+    spesa_mensile_attuale: parsed.spesa_mensile_attuale,
+    spesa_annua_attuale: parsed.spesa_annua_attuale,
+    valuta: parsed.valuta || "EUR",
+    dettagli: parsed.dettagli || {}
+  };
+
+  return profile;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -135,85 +274,27 @@ export async function POST(req: NextRequest) {
     }
 
     const mime = file.type || "";
-    if (!mime.startsWith("image/")) {
+    let profile: AIProfile;
+
+    if (mime.startsWith("application/pdf")) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      profile = await analyzePdf(buffer);
+    } else if (mime.startsWith("image/")) {
+      profile = await analyzeImage(file);
+    } else {
       return NextResponse.json(
         {
           error:
-            "Per il momento sono supportate solo immagini (JPG, PNG, WEBP). Esporta la pagina riepilogo della bolletta come immagine o fai uno screenshot e ricarica."
+            "Formato non supportato. Carica un PDF oppure un'immagine (JPG, PNG, WEBP) della bolletta/polizza/contratto."
         },
         { status: 400 }
       );
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Analizza questa bolletta/polizza/contratto e restituisci SOLO il JSON richiesto."
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${file.type};base64,${base64Data}`
-              }
-            }
-          ]
-        }
-      ],
-      temperature: 0
-    });
-
-    const raw = completion.choices[0]?.message?.content;
-    if (!raw) {
-      throw new Error("Nessuna risposta ricevuta dal modello AI.");
-    }
-
-    let parsed: AIProfile;
-    try {
-      const cleaned = raw
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-
-      parsed = JSON.parse(cleaned);
-    } catch (e) {
-      console.error("Errore nel parse del JSON AI:", e, "raw:", raw);
-      throw new Error(
-        "Impossibile interpretare la risposta AI come JSON. Riprova con un'immagine più leggibile (fronte riepilogo, importi ben visibili)."
-      );
-    }
-
-    if (
-      !parsed.categoria ||
-      typeof parsed.spesa_mensile_attuale !== "number" ||
-      typeof parsed.spesa_annua_attuale !== "number"
-    ) {
-      throw new Error(
-        "La risposta AI non contiene i campi minimi necessari (categoria, spesa_mensile_attuale, spesa_annua_attuale)."
-      );
-    }
-
-    const profile: AIProfile = {
-      categoria: parsed.categoria,
-      fornitore_attuale: parsed.fornitore_attuale || "Fornitore non specificato",
-      spesa_mensile_attuale: parsed.spesa_mensile_attuale,
-      spesa_annua_attuale: parsed.spesa_annua_attuale,
-      valuta: parsed.valuta || "EUR",
-      dettagli: {
-        ...(parsed.dettagli || {}),
-        filename_originale: file.name
-      }
+    // Aggiunge info di filename nei dettagli
+    profile.dettagli = {
+      ...(profile.dettagli || {}),
+      filename_originale: file.name
     };
 
     const suggestions = suggestAlternatives({
