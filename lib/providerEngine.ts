@@ -45,7 +45,7 @@ interface ProviderOffer {
   tag_predefinito?: SuggestedTag;
 }
 
-// Catalogo interno – versionone MVP (20+ offerte realistiche)
+// Catalogo interno – MVP (20+ offerte realistiche)
 const PROVIDERS_CATALOG: ProviderOffer[] = [
   // ENERGIA
   {
@@ -195,7 +195,7 @@ const PROVIDERS_CATALOG: ProviderOffer[] = [
     tag_predefinito: "massimo_risparmio",
   },
 
-  // ASSICURAZIONI
+  // ASSICURAZIONI (tutte aziendali, NON moto)
   {
     id: "unipol-rc-aziendale",
     categoria: "assicurazioni",
@@ -271,7 +271,7 @@ const PROVIDERS_CATALOG: ProviderOffer[] = [
     tag_predefinito: "flessibile",
   },
   {
-    id: "arithmos-green-ev",
+    id: "arval-green-ev",
     categoria: "noleggio_auto",
     fornitore: "Arval",
     nome_offerta: "Green EV Business",
@@ -299,13 +299,27 @@ const PROVIDERS_CATALOG: ProviderOffer[] = [
 interface SuggestInput {
   categoria: CategoriaProvider;
   spesa_mensile_attuale: number;
+  tipo_documento?: string | null;
+}
+
+interface CandidateWithRaw extends SuggestedAlternative {
+  rawDeltaMensile: number;
 }
 
 // Motore di ranking
 export function suggestAlternatives(
   input: SuggestInput
 ): SuggestedAlternative[] {
-  const { categoria, spesa_mensile_attuale } = input;
+  const { categoria, spesa_mensile_attuale, tipo_documento } = input;
+
+  // 1) Caso specifico: polizze moto / motoveicolo → al momento NON offriamo alternative
+  if (
+    categoria === "assicurazioni" &&
+    tipo_documento &&
+    tipo_documento.toLowerCase().match(/moto|motocicl|motoveicol/)
+  ) {
+    return [];
+  }
 
   const baseSpesaMensile =
     spesa_mensile_attuale > 0 ? spesa_mensile_attuale : 1;
@@ -318,11 +332,10 @@ export function suggestAlternatives(
     return [];
   }
 
-  const mapped: SuggestedAlternative[] = candidates.map((offer) => {
-    const risparmioMensile = Math.max(
-      0,
-      baseSpesaMensile - offer.costo_mensile_base
-    );
+  // 2) Calcolo risparmio vs offerta attuale (tenendo traccia anche del delta "vero")
+  const withRaw: CandidateWithRaw[] = candidates.map((offer) => {
+    const rawDelta = baseSpesaMensile - offer.costo_mensile_base; // positivo = offerta più economica
+    const risparmioMensile = Math.max(0, rawDelta);
     const risparmioAnnuale = risparmioMensile * 12;
     const perc =
       baseSpesaMensile > 0 ? risparmioMensile / baseSpesaMensile : 0;
@@ -356,13 +369,23 @@ export function suggestAlternatives(
       note: offer.note,
       tag: offer.tag_predefinito ?? "nessuna",
       score,
+      rawDeltaMensile: rawDelta,
     };
   });
 
-  // Ordina per score decrescente
-  const sorted = mapped.sort((a, b) => b.score - a.score);
+  // 3) Se nessuna offerta è ECONOMICAMENTE migliore → non proponiamo alternative
+  const hasRealSaving = withRaw.some((c) => c.rawDeltaMensile > 0);
+  if (!hasRealSaving) {
+    return [];
+  }
 
-  // Etichette intelligenti in base al ranking e alla % di risparmio
+  // 4) Filtra solo le offerte che portano un risparmio reale (>0)
+  const onlyBetter = withRaw.filter((c) => c.rawDeltaMensile > 0);
+
+  // 5) Ordina per score (risparmio + condizioni)
+  const sorted = onlyBetter.sort((a, b) => b.score - a.score);
+
+  // 6) Etichette intelligenti
   if (sorted.length > 0) {
     const maxPerc = Math.max(
       ...sorted.map((s) => s.risparmio_percentuale || 0)
@@ -370,7 +393,6 @@ export function suggestAlternatives(
 
     sorted.forEach((s, idx) => {
       if (idx === 0) {
-        // prima: scelta consigliata => gestita in UI, ma tagdiamo comunque
         if (s.risparmio_percentuale >= maxPerc * 0.8) {
           s.tag = "massimo_risparmio";
         } else {
@@ -388,5 +410,6 @@ export function suggestAlternatives(
     });
   }
 
-  return sorted;
+  // 7) Rimuovo il campo interno rawDeltaMensile prima di restituire
+  return sorted.map(({ rawDeltaMensile, ...rest }) => rest);
 }

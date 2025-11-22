@@ -11,7 +11,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 export const runtime = "nodejs";
 
-// ------------------ PROMPT MIGLIORATO ------------------
+// ------------------ PROMPT AI ------------------
 const SYSTEM_PROMPT = `
 Sei un analista italiano di costi aziendali.
 
@@ -49,7 +49,7 @@ REGOLE:
 NON aggiungere alcun testo fuori dal JSON.
 `;
 
-// categorie supportate dal motore di confronto
+// categorie supportate dal motore
 const VALID_CATEGORIES: CategoriaProvider[] = [
   "energia",
   "telefonia_mobile",
@@ -58,7 +58,7 @@ const VALID_CATEGORIES: CategoriaProvider[] = [
   "noleggio_auto",
 ];
 
-// ------------------ NORMALIZZAZIONE ------------------
+// ------------------ NORMALIZZAZIONE PROFILO ------------------
 function normalizeProfile(raw: any): CurrentCostProfile {
   let categoria: CategoriaProvider = "energia";
 
@@ -66,7 +66,7 @@ function normalizeProfile(raw: any): CurrentCostProfile {
     const c = raw.categoria.toLowerCase().trim();
 
     if (c === "gas") {
-      // interno: "gas" lo trattiamo come "energia"
+      // per ora trattiamo il gas come energia
       categoria = "energia";
     } else {
       const match = (VALID_CATEGORIES as readonly string[]).find(
@@ -228,19 +228,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Aggiorno dettagli con filename
+    // aggiungo il filename ai dettagli
     profile.dettagli = {
       ...(profile.dettagli || {}),
       filename_originale: file.name,
     };
 
-    // Calcolo alternative dal motore interno
+    // Calcolo alternative dal motore interno (con tipo documento)
     const suggestions = suggestAlternatives({
       categoria: profile.categoria,
       spesa_mensile_attuale: profile.spesa_mensile_attuale,
+      tipo_documento: profile.tipo_documento ?? null,
     });
 
-    // Arricchisco con flag is_best
+    // arricchisco con flag is_best
     const enriched = suggestions.map((s, idx) => ({
       ...s,
       is_best: idx === 0,
@@ -252,7 +253,7 @@ export async function POST(req: NextRequest) {
         ? best.risparmio_annuo_stimato
         : 0;
 
-    // Salvataggio su Supabase (incluso alternatives JSONB)
+    // salvataggio Supabase (incluso alternatives JSONB)
     try {
       await supabase.from("analyses").insert({
         categoria: profile.categoria,
