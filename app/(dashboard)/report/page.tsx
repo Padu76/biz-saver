@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { BarChart } from "@/components/report/BarChart";
 import { CategoryCards } from "@/components/report/CategoryCards";
 import { DocumentAccordion } from "@/components/report/DocumentAccordion";
+import { MonitorButton } from "@/components/report/MonitorButton";
 
 export const dynamic = "force-dynamic";
 
@@ -68,12 +69,15 @@ export default async function ReportPage() {
   return (
     <div className="space-y-10">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold">Report risparmi</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-300">
-          Panoramica dei costi analizzati e dei risparmi potenziali individuati
-          su bollette, contratti e polizze caricati in Biz Saver.
-        </p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Report risparmi</h1>
+          <p className="mt-1 max-w-2xl text-sm text-slate-300">
+            Panoramica dei costi analizzati e dei risparmi potenziali individuati
+            su bollette, contratti e polizze caricati in Biz Saver.
+          </p>
+        </div>
+        <MonitorButton />
       </div>
 
       {/* KPI */}
