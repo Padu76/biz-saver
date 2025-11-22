@@ -9,22 +9,23 @@ export default async function HistoryPage() {
   const { data, error } = await supabase
     .from("analyses")
     .select("*")
-    .order("id", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Errore caricamento storico:", error);
+    console.error("[History] errore caricamento analyses:", error);
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold">Storico analisi</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-300">
-          Qui trovi tutte le analisi effettuate e salvate automaticamente.
+        <p className="mt-1 text-sm text-slate-300">
+          Qui trovi tutte le analisi effettuate. Puoi eliminare record doppi o
+          non più rilevanti.
         </p>
       </div>
 
-      <HistoryTable analyses={data || []} />
+      <HistoryTable analyses={(data as any[]) || []} />
     </div>
   );
 }
