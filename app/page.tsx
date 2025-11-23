@@ -81,7 +81,11 @@ export default async function HomePage() {
 
               <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">
                 Quante volte hai pensato
-                <span className="text-emerald-400"> “questa bolletta è una follia”</span>…
+                <span className="text-emerald-400">
+                  {" "}
+                  “questa bolletta è una follia”
+                </span>
+                …
                 ma non avevi tempo di capirla?
               </h1>
 
@@ -89,7 +93,10 @@ export default async function HomePage() {
                 Biz Saver AI legge bollette e contratti al posto tuo,
                 calcola quanto stai pagando davvero e ti mostra in chiaro
                 se esistono offerte migliori dal nostro catalogo interno.
-                Tu vedi solo il succo: <span className="font-semibold">quanto puoi risparmiare all’anno.</span>
+                Tu vedi solo il succo:{" "}
+                <span className="font-semibold">
+                  quanto puoi risparmiare all’anno.
+                </span>
               </p>
 
               <div className="flex flex-wrap gap-3 pt-1">
@@ -108,9 +115,9 @@ export default async function HomePage() {
               </div>
 
               <p className="text-[11px] text-slate-400">
-                Nessun impegno: prova con una sola bolletta. Nel peggiore dei casi
-                scopri che stai già pagando il giusto, nel migliore ti trovi
-                qualche centinaio di euro l&apos;anno in tasca.
+                Nessun impegno: prova con una sola bolletta. Nel peggiore dei
+                casi scopri che stai già pagando il giusto, nel migliore ti
+                trovi qualche centinaio di euro l&apos;anno in tasca.
               </p>
             </div>
 
@@ -152,23 +159,33 @@ export default async function HomePage() {
                   </div>
                 </div>
 
-                {/* mini “grafico” a colonne */}
-                <div className="mt-2 rounded-lg bg-slate-950/70 p-3">
-                  <div className="flex items-end gap-2 h-20">
-                    <div className="flex-1">
-                      <div className="flex h-full items-end">
-                        <div className="w-full rounded-t-md bg-slate-600" style={{ height: "80%" }} />
+                {/* mini grafico orizzontale molto chiaro */}
+                <div className="mt-2 rounded-lg bg-slate-950/70 p-3 text-[11px]">
+                  <div className="mb-2 flex items-center justify-between text-slate-400">
+                    <span>Confronto immediato</span>
+                    <span className="text-emerald-300 font-semibold">
+                      ~80% in meno
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-[10px] text-slate-400">
+                        <span>Spesa attuale</span>
+                        <span>42,70 €</span>
                       </div>
-                      <div className="mt-1 text-center text-[10px] text-slate-400">
-                        Ora
+                      <div className="h-2 w-full rounded-full bg-slate-800">
+                        <div className="h-2 w-[100%] rounded-full bg-slate-500" />
                       </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex h-full items-end">
-                        <div className="w-full rounded-t-md bg-emerald-400" style={{ height: "20%" }} />
+
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-[10px] text-slate-400">
+                        <span>Con Biz Saver</span>
+                        <span>8,60 €</span>
                       </div>
-                      <div className="mt-1 text-center text-[10px] text-emerald-300">
-                        Con Biz Saver
+                      <div className="h-2 w-full rounded-full bg-slate-800">
+                        <div className="h-2 w-[20%] rounded-full bg-emerald-400" />
                       </div>
                     </div>
                   </div>
@@ -254,7 +271,8 @@ export default async function HomePage() {
       <section className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-slate-100">
-            “Ho caricato 3 bollette in pausa pranzo. Ho trovato 900€ di risparmio annuo.”
+            “Ho caricato 3 bollette in pausa pranzo. Ho trovato 900€ di
+            risparmio annuo.”
           </h2>
           <p className="text-xs text-slate-300">
             L’obiettivo di Biz Saver non è diventare l’ennesimo gestionale, ma
