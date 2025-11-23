@@ -6,7 +6,7 @@ const CATEGORIES = [
     key: "energia",
     title: "Utenze energia / gas",
     desc: "Bollette luce e gas per uffici, studi, negozi e piccole attività (1–10 dipendenti).",
-    hint: "Carica la bolletta in PDF o foto.",
+    hint: "Carica la bolletta in PDF o come foto scattata dal telefono.",
   },
   {
     key: "internet",
@@ -35,8 +35,23 @@ const CATEGORIES = [
   {
     key: "altro",
     title: "Altre spese ricorrenti",
-    desc: "In sviluppo: software, servizi digitali, manutenzioni periodiche.",
-    hint: "Roadmap per le prossime versioni.",
+    desc: "In roadmap: software, servizi digitali, manutenzioni periodiche, abbonamenti vari.",
+    hint: "Saranno aggiunti nelle prossime versioni di Biz Saver.",
+  },
+];
+
+const FAQ = [
+  {
+    q: "Cos’è Biz Saver AI, in parole semplici?",
+    a: "È un assistente che legge bollette e contratti al posto tuo, calcola quanto stai spendendo e ti suggerisce solo le offerte realmente più convenienti dal nostro catalogo interno.",
+  },
+  {
+    q: "Per chi è pensato?",
+    a: "Per micro-aziende, liberi professionisti e studi da 1 a 10 persone che pagano utenze, internet, telefonia e assicurazioni e non hanno tempo di confrontare ogni offerta sul mercato.",
+  },
+  {
+    q: "Devo essere un tecnico per usarlo?",
+    a: "No. Carichi un PDF o una foto della bolletta, il resto lo fa l’AI. Tu vedi solo numeri chiari: quanto spendi oggi, quanto potresti risparmiare, con quale fornitore.",
   },
 ];
 
@@ -44,57 +59,105 @@ export default async function HomePage() {
   return (
     <div className="space-y-10">
       {/* HERO */}
-      <section className="space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          Biz Saver AI – Panoramica
-        </h1>
-        <p className="max-w-2xl text-sm text-slate-300">
-          Collega le bollette e i contratti della tua azienda, lascia che
-          l&apos;AI li legga al posto tuo e scopri in pochi secondi dove puoi
-          tagliare costi fissi senza impazzire tra offerte e preventivi.
-        </p>
+      <section className="space-y-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-3 max-w-xl">
+            <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-emerald-300">
+              Beta per micro-imprese 1–10 dipendenti
+            </span>
 
-        <div className="flex flex-wrap gap-3 pt-2">
-          <a
-            href="/upload"
-            className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-black shadow-lg shadow-accent/40 hover:bg-accent/90"
-          >
-            + Carica un documento
-          </a>
-          <a
-            href="/report"
-            className="inline-flex items-center justify-center rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-100 hover:bg-slate-900"
-          >
-            Vedi report risparmi
-          </a>
+            <h1 className="text-3xl font-semibold tracking-tight">
+              L&apos;AI che legge le tue bollette e ti dice dove puoi
+              risparmiare.
+            </h1>
+
+            <p className="text-sm text-slate-300">
+              Biz Saver AI analizza bollette, polizze e contratti ricorrenti,
+              calcola la spesa annua della tua azienda e la confronta con un
+              catalogo di offerte selezionate. Tu vedi subito quanto potresti
+              tagliare sui costi fissi, senza perdere ore tra preventivi e call
+              con i commerciali.
+            </p>
+
+            <div className="flex flex-wrap gap-3 pt-1">
+              <a
+                href="/upload"
+                className="inline-flex items-center justify-center rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-black shadow-lg shadow-accent/40 hover:bg-accent/90"
+              >
+                + Carica la tua prima bolletta
+              </a>
+              <a
+                href="/report"
+                className="inline-flex items-center justify-center rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-100 hover:bg-slate-900"
+              >
+                Guarda il report risparmi
+              </a>
+            </div>
+
+            <p className="text-[11px] text-slate-500">
+              Nessun vincolo: usalo per una sola bolletta, giusto per vedere se
+              stai pagando troppo.
+            </p>
+          </div>
+
+          <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-200 space-y-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              A chi risolve un problema
+            </div>
+            <ul className="space-y-2">
+              <li className="flex gap-2">
+                <span className="mt-[2px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>
+                  Titolari di piccole aziende e studi che non hanno un
+                  consulente dedicato ai costi.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-[2px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>
+                  Chi paga luce, gas, internet, telefonia e assicurazioni ma
+                  non ha mai il tempo di confrontare le offerte.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-[2px] h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>
+                  Chi vuole un numero chiaro: “quanto potrei risparmiare
+                  all’anno se cambio fornitore?”.
+                </span>
+              </li>
+            </ul>
+          </div>
         </div>
 
-        <div className="mt-4 grid gap-3 text-xs text-slate-300 md:grid-cols-3">
+        {/* Come funziona */}
+        <div className="grid gap-3 text-xs text-slate-300 md:grid-cols-3">
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              1. Carica
+              1. Carichi un documento
             </div>
             <p className="mt-1">
-              Bolletta, polizza o contratto (PDF o immagine) direttamente dalla
-              sezione &quot;Carica documenti&quot;.
+              Bolletta, polizza o contratto (PDF o foto). Non servono form da
+              compilare: basta il file che usi oggi.
             </p>
           </div>
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              2. L&apos;AI legge per te
+              2. L&apos;AI legge e capisce i numeri
             </div>
             <p className="mt-1">
-              L&apos;AI estrae fornitore, costi mensili/annuali e categoria di
-              spesa e li salva nello storico.
+              Biz Saver estrae fornitore, canone mensile, spesa annua e
+              categoria (energia, internet, telefono, assicurazioni, noleggio).
             </p>
           </div>
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              3. Confronto e risparmi
+              3. Confronto e risparmio potenziale
             </div>
             <p className="mt-1">
-              Biz Saver confronta con le offerte del catalogo interno e ti
-              mostra solo le alternative realmente più convenienti.
+              Il sistema confronta con il catalogo interno e ti propone solo
+              offerte che ti farebbero davvero risparmiare, evidenziando la
+              migliore.
             </p>
           </div>
         </div>
@@ -104,10 +167,10 @@ export default async function HomePage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-100">
-            Categorie di costo che puoi analizzare oggi
+            Cosa puoi far analizzare oggi
           </h2>
           <span className="rounded-full border border-slate-700 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400">
-            Target: micro-imprese 1–10 dipendenti
+            Pensato per aziende 1–10 persone
           </span>
         </div>
 
@@ -131,17 +194,37 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* CALL TO ACTION FINALE */}
+      {/* MINI FAQ */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-100">
+          Domande frequenti veloci
+        </h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          {FAQ.map((item) => (
+            <div
+              key={item.q}
+              className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-200"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {item.q}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-300">{item.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA FINALE */}
       <section className="rounded-2xl border border-emerald-700/60 bg-emerald-950/20 p-5 text-sm text-emerald-50">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-wide text-emerald-200">
-              Pronto per il primo test?
+              Fai un test su una sola bolletta
             </div>
             <p className="mt-1 text-xs text-emerald-50">
-              Carica una sola bolletta e guarda quanto potresti risparmiare in
-              un anno. Poi decidi se estendere l&apos;analisi a tutta
-              l&apos;azienda.
+              Carica un documento, lascia lavorare l&apos;AI e guarda subito il
+              risparmio potenziale annuo. Se ti convince, puoi estendere
+              l&apos;analisi a tutte le spese fisse della tua azienda.
             </p>
           </div>
           <a
